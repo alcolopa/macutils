@@ -30,3 +30,13 @@ git tag v1.1.0 && git push origin main v1.1.0
 ```
 
 Pushing a `v*` tag triggers `.github/workflows/release.yml`, which builds the app and attaches the zip to a GitHub release.
+
+## Donate
+
+If MacMonitor is useful to you, you can support development with USDT on the **Arbitrum One** network:
+
+`0x157F29dF2DF3760A96D8AbeFF9c0c93004Eb0de0`
+
+[View on Arbiscan](https://arbiscan.io/address/0x157F29dF2DF3760A96D8AbeFF9c0c93004Eb0de0)
+
+Only send USDT on Arbitrum One to this address. Funds sent on other networks may be lost.
