@@ -1,0 +1,20 @@
+# SwiftPM / Xcode
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+xcuserdata/
+DerivedData/
+*.o
+
+# Build outputs
+MacMonitor.app/
+dist/
+
+# macOS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Local tooling
+graphify-out/
+.claude/
