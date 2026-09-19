@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0
+
+- First stable release
+- README: explains the macOS "could not verify" warning for the unsigned app and how to open it
+
 ## 0.0.3
 
 ### Menu bar
