@@ -122,14 +122,7 @@ public enum StatusItemRenderer {
             
             let barRect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
             
-            let color: CGColor
-            if val > 80.0 {
-                color = CGColor(red: 1.0, green: 0.23, blue: 0.19, alpha: 0.95)
-            } else if val > 50.0 {
-                color = CGColor(red: 1.0, green: 0.58, blue: 0.0, alpha: 0.95)
-            } else {
-                color = primaryColor.cgColor
-            }
+            let color = primaryColor.cgColor
             
             context.setFillColor(color)
             let path = CGPath(roundedRect: barRect, cornerWidth: 1.0, cornerHeight: 1.0, transform: nil)

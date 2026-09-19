@@ -6,6 +6,8 @@ public final class NetworkStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = NetworkBarItemView(frame: NSRect(x: 0, y: 0, width: 62, height: 22))
     private let popover = NSPopover()
     private let popoverVC = NetworkPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
@@ -176,11 +178,11 @@ final class NetworkBarItemView: NSView {
             let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
             let str = NSMutableAttributedString(
                 string: outSpeedText,
-                attributes: [.font: font, .foregroundColor: NSColor.systemOrange])
+                attributes: [.font: font, .foregroundColor: textColor])
             str.append(NSAttributedString(string: " ", attributes: [.font: font]))
             str.append(NSAttributedString(
                 string: inSpeedText,
-                attributes: [.font: font, .foregroundColor: NSColor.systemTeal]))
+                attributes: [.font: font, .foregroundColor: textColor]))
             let size = str.size()
             str.draw(at: CGPoint(x: (rect.width - size.width) / 2.0, y: (rect.height - size.height) / 2.0))
             return
@@ -190,8 +192,8 @@ final class NetworkBarItemView: NSView {
             let barW: CGFloat = 5.0, barH: CGFloat = 16.0, gap: CGFloat = 2.0
             let x = (rect.width - barW * 2 - gap) / 2.0
             let y = (rect.height - barH) / 2.0
-            StatusItemRenderer.drawVerticalBar(in: context, rect: CGRect(x: x, y: y, width: barW, height: barH), percentage: outFraction, fillColor: .systemOrange)
-            StatusItemRenderer.drawVerticalBar(in: context, rect: CGRect(x: x + barW + gap, y: y, width: barW, height: barH), percentage: inFraction, fillColor: .systemTeal)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: CGRect(x: x, y: y, width: barW, height: barH), percentage: outFraction, fillColor: textColor)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: CGRect(x: x + barW + gap, y: y, width: barW, height: barH), percentage: inFraction, fillColor: textColor)
             return
         }
         
@@ -199,11 +201,11 @@ final class NetworkBarItemView: NSView {
         
         let upAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.systemOrange
+            .foregroundColor: textColor
         ]
         let downAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.systemTeal
+            .foregroundColor: textColor
         ]
         
         let upStr = NSAttributedString(string: outSpeedText, attributes: upAttrs)

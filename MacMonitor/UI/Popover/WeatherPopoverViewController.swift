@@ -66,7 +66,7 @@ public final class WeatherPopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)

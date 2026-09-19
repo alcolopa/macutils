@@ -61,8 +61,9 @@ public final class MetricCardView: NSView {
         contentStack.spacing = spacing
     }
     
-    public func setBadge(_ text: String) {
+    public func setBadge(_ text: String, tint: NSColor? = nil) {
         badgeLabel.stringValue = text
+        badgeLabel.textColor = tint ?? NSColor.labelColor
     }
     
     public func addContentSubview(_ view: NSView) {

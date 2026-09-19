@@ -112,6 +112,42 @@ public enum ColorTheme: String, Sendable, CaseIterable {
     }
 }
 
+extension ColorTheme {
+    /// A hue clearly different from `primaryColor`, for a second series on the same graph.
+    public var contrastColor: NSColor {
+        switch self {
+        case .standard:   return .systemOrange
+        case .cyberpunk:  return NSColor(red: 1.0, green: 0.9, blue: 0.1, alpha: 1.0)
+        case .emerald:    return NSColor(red: 0.9, green: 0.9, blue: 0.2, alpha: 1.0)
+        case .sunset:     return NSColor(red: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
+        case .monochrome: return NSColor(white: 0.45, alpha: 1.0)
+        }
+    }
+}
+
+extension ColorTheme {
+    /// `count` clearly distinct colours (one per CPU core), spread around the hue wheel starting at the theme's
+    /// own hue, with the theme's saturation/brightness character.
+    public func seriesColors(count: Int) -> [NSColor] {
+        guard count > 0 else { return [] }
+        let base = primaryColor.usingColorSpace(.deviceRGB) ?? primaryColor
+        let startHue: CGFloat = self == .monochrome ? 0.58 : base.hueComponent
+        let sat: CGFloat
+        let bri: CGFloat
+        switch self {
+        case .standard:   (sat, bri) = (0.75, 0.95)
+        case .cyberpunk:  (sat, bri) = (0.90, 1.00)
+        case .emerald:    (sat, bri) = (0.70, 0.90)
+        case .sunset:     (sat, bri) = (0.85, 1.00)
+        case .monochrome: (sat, bri) = (0.40, 0.85)
+        }
+        return (0..<count).map { i in
+            let hue = (startHue + CGFloat(i) / CGFloat(count)).truncatingRemainder(dividingBy: 1.0)
+            return NSColor(hue: hue, saturation: sat, brightness: bri, alpha: 1.0)
+        }
+    }
+}
+
 public enum BarIconPosition: String, Sendable, CaseIterable {
     case leading  = "Left of value"
     case trailing = "Right of value"
@@ -483,7 +519,7 @@ public final class AppPreferences: @unchecked Sendable {
             if let s = part.style, !allowed.contains(s) { return fallback }
             return part
         }.filter { part in
-            if part == .icon && metric == .battery { return false }
+            if part == .icon && (metric == .battery || metric == .weather) { return false }
             return seen.insert(part).inserted
         }
         if !order.contains(where: { $0.style != nil }) { order.append(fallback) }

@@ -41,7 +41,7 @@ public final class CPUPopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -59,7 +59,7 @@ public final class CPUPopoverViewController: NSViewController {
         
         // 1. Graph Section
         let theme = AppPreferences.shared.colorTheme
-        let graphCard = MetricCardView(title: "CPU History (60s)")
+        let graphCard = MetricCardView(title: "CPU History by Core (60s)")
         graphView.heightAnchor.constraint(equalToConstant: 85).isActive = true
         graphView.series1Color = theme.primaryColor
         graphCard.addContentSubview(graphView)
@@ -111,9 +111,16 @@ public final class CPUPopoverViewController: NSViewController {
     
     public func update(stats: CPUStats) {
         let theme = AppPreferences.shared.colorTheme
-        graphView.series1Color = theme.primaryColor
-        graphView.push(val1: stats.totalUsage)
-        breakdownCard.setBadge(String(format: "%.1f%%", stats.totalUsage))
+        let sev = Severity.level(stats.totalUsage, warning: 70, danger: 90)
+        let coreLoads = stats.perCoreLoads.map(\.totalUsagePercentage)
+        if coreLoads.isEmpty {
+            graphView.series1Color = sev.color(normal: theme.primaryColor)
+            graphView.push(val1: stats.totalUsage)
+        } else {
+            graphView.multiColors = theme.seriesColors(count: coreLoads.count)
+            graphView.pushMulti(coreLoads)
+        }
+        breakdownCard.setBadge(String(format: "%.1f%%", stats.totalUsage), tint: sev.textTint)
         
         let loads = stats.perCoreLoads
         if !loads.isEmpty {
@@ -219,7 +226,7 @@ final class CoreMiniBarView: NSView {
         let sysR = load.systemPercentage / 100.0
         let theme = AppPreferences.shared.colorTheme
         bar.setSegments([
-            BarSegment(ratio: userR, color: theme.primaryColor),
+            BarSegment(ratio: userR, color: Severity.level(load.totalUsagePercentage, warning: 70, danger: 90).color(normal: theme.primaryColor)),
             BarSegment(ratio: sysR, color: theme.secondaryColor)
         ])
     }

@@ -6,6 +6,8 @@ public final class DiskStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = DiskBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = DiskPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
@@ -129,7 +131,6 @@ final class DiskBarItemView: NSView {
     }
     
     private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
-        let theme = AppPreferences.shared.colorTheme
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
         
@@ -145,12 +146,12 @@ final class DiskBarItemView: NSView {
                 in: context,
                 rect: barRect,
                 percentage: usedPercentage,
-                fillColor: .systemPurple
+                fillColor: textColor
             )
             
         case .verticalBar:
             let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
-            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: usedPercentage, fillColor: .systemPurple)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: usedPercentage, fillColor: textColor)
             
         case .circularGauge:
             let gaugeSize: CGFloat = 15.0
@@ -164,7 +165,7 @@ final class DiskBarItemView: NSView {
                 in: context,
                 rect: gaugeRect,
                 percentage: usedPercentage,
-                fillColor: .systemPurple
+                fillColor: textColor
             )
             
         case .textOnly:
@@ -204,11 +205,11 @@ final class DiskBarItemView: NSView {
             
             let barColor: NSColor
             if usedPercentage > 90.0 {
-                barColor = .systemRed
+                barColor = textColor
             } else if usedPercentage > 75.0 {
-                barColor = .systemOrange
+                barColor = textColor
             } else {
-                barColor = theme.primaryColor
+                barColor = textColor
             }
             
             StatusItemRenderer.drawHorizontalBar(

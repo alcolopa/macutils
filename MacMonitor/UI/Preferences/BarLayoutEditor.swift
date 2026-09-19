@@ -122,9 +122,9 @@ final class BarLayoutEditor {
     private let stripStack = NSStackView()
     private let trayStack = NSStackView()
     
-    /// Every part this widget can show. The battery draws its own icon, so it has no separate icon part.
+    /// Every part this widget can show. Battery and weather draw their own icon, so they have no separate icon part.
     private var available: [BarPart] {
-        var parts: [BarPart] = metric == .battery ? [] : [.icon]
+        var parts: [BarPart] = (metric == .battery || metric == .weather) ? [] : [.icon]
         parts.append(.label)
         parts += AppPreferences.availableStyles(for: metric).map { .element($0) }
         return parts
@@ -140,9 +140,9 @@ final class BarLayoutEditor {
             stack.translatesAutoresizingMaskIntoConstraints = false
             zone.addSubview(stack)
             NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: zone.leadingAnchor, constant: 4),
+                stack.leadingAnchor.constraint(equalTo: zone.leadingAnchor, constant: 10),
                 stack.centerYAnchor.constraint(equalTo: zone.centerYAnchor),
-                stack.trailingAnchor.constraint(lessThanOrEqualTo: zone.trailingAnchor, constant: -4)
+                stack.trailingAnchor.constraint(lessThanOrEqualTo: zone.trailingAnchor, constant: -10)
             ])
         }
         strip.heightAnchor.constraint(equalToConstant: 34).isActive = true
@@ -192,8 +192,19 @@ final class BarLayoutEditor {
         case .label: chip.toolTip = "Label"
         case .element(let style):
             switch style {
-            case .textOnly: chip.toolTip = "Text"
-            case .barOnly: chip.toolTip = metric == .weather ? "Condition icon" : "Bar"
+            case .textOnly:
+                switch metric {
+                case .weather: chip.toolTip = "Temperature"
+                case .network: chip.toolTip = "Speeds (one line)"
+                case .temperatures: chip.toolTip = "Temperature"
+                default: chip.toolTip = "Percentage"
+                }
+            case .barOnly:
+                switch metric {
+                case .weather: chip.toolTip = "Condition icon"
+                case .cpu: chip.toolTip = "Activity bars"
+                default: chip.toolTip = "Horizontal bar"
+                }
             case .verticalBar: chip.toolTip = "Vertical bar"
             case .circularGauge: chip.toolTip = "Circle"
             case .multicolorCircle: chip.toolTip = "Multicolour circle"
@@ -206,8 +217,8 @@ final class BarLayoutEditor {
                 switch metric {
                 case .cpu: chip.toolTip = "Graph"
                 case .battery: chip.toolTip = "Battery icon"
-                case .network: chip.toolTip = "Upload / download"
-                default: chip.toolTip = "Count"
+                case .network: chip.toolTip = "Speeds (stacked)"
+                default: chip.toolTip = "Display count"
                 }
             }
         }

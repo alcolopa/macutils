@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Network
 
 public final class AdaptivePoller: @unchecked Sendable {
     public enum State: Sendable {
@@ -28,6 +29,8 @@ public final class AdaptivePoller: @unchecked Sendable {
     
     private let weatherService = OpenWeatherMapService.shared
     private var weatherTimer: DispatchSourceTimer?
+    private var pathMonitor: NWPathMonitor?
+    private var weatherRetryTask: Task<Void, Never>?
     private var lastWeatherStats: WeatherStats = .unconfigured
     
     public var onMetricsUpdated: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, BatteryStats, State) -> Void)?
@@ -70,6 +73,9 @@ public final class AdaptivePoller: @unchecked Sendable {
         timer = nil
         weatherTimer?.cancel()
         weatherTimer = nil
+        pathMonitor?.cancel()
+        pathMonitor = nil
+        weatherRetryTask?.cancel()
     }
     
     public func registerPopoverState(isShown: Bool) {
@@ -259,6 +265,23 @@ public final class AdaptivePoller: @unchecked Sendable {
         }
         timer.resume()
         self.weatherTimer = timer
+        startPathMonitor()
+    }
+    
+    /// At login the network is often not up yet: refetch as soon as connectivity appears
+    /// if the last attempt failed or there is no weather to show.
+    private func startPathMonitor() {
+        guard pathMonitor == nil else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self, path.status == .satisfied else { return }
+            let stats = self.lastWeatherStats
+            if stats.isConfigured && (stats.current == nil || stats.errorMessage != nil) {
+                Task { await self.fetchWeatherAsync() }
+            }
+        }
+        monitor.start(queue: queue)
+        pathMonitor = monitor
     }
     
     private func fetchWeatherAsync() async {
@@ -292,6 +315,13 @@ public final class AdaptivePoller: @unchecked Sendable {
             await MainActor.run { [weak self] in
                 self?.lastWeatherStats = errStats
                 self?.onWeatherUpdated?(errStats)
+            }
+            // Retry soon rather than waiting a full update interval.
+            weatherRetryTask?.cancel()
+            weatherRetryTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                guard !Task.isCancelled else { return }
+                await self?.fetchWeatherAsync()
             }
         }
     }

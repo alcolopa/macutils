@@ -31,7 +31,7 @@ public final class BatteryPopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -97,12 +97,14 @@ public final class BatteryPopoverViewController: NSViewController {
     }
     
     public func update(stats: BatteryStats) {
-        breakdownCard.setBadge("\(stats.currentCapacity)% (\(stats.isCharging ? "Charging" : stats.powerSourceState))")
         stateRow.setValue(stats.powerSourceState)
         timeRow.setValue(stats.formattedTimeRemaining)
         
         let frac = Double(stats.currentCapacity) / 100.0
-        let color: NSColor = stats.isCharging ? .systemGreen : (stats.currentCapacity <= 20 ? .systemRed : .systemBlue)
+        let sev: Severity = stats.isCharging ? .normal
+            : (stats.currentCapacity <= 10 ? .danger : (stats.currentCapacity <= 20 ? .warning : .normal))
+        let color: NSColor = stats.isCharging ? .systemGreen : sev.color(normal: .systemBlue)
+        breakdownCard.setBadge("\(stats.currentCapacity)% (\(stats.isCharging ? "Charging" : stats.powerSourceState))", tint: sev.textTint)
         batteryBar.setSegments([
             BarSegment(ratio: frac, color: color),
             BarSegment(ratio: 1.0 - frac, color: NSColor.secondaryLabelColor.withAlphaComponent(0.25))

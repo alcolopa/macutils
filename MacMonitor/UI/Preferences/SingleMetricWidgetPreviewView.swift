@@ -61,8 +61,8 @@ public final class SingleMetricWidgetPreviewView: NSView {
         let cardStack = NSStackView()
         cardStack.orientation = .vertical
         cardStack.alignment = .centerX
-        cardStack.spacing = 10
-        cardStack.edgeInsets = NSEdgeInsets(top: 12, left: 16, bottom: 12, right: 16)
+        cardStack.spacing = 14
+        cardStack.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
         cardStack.translatesAutoresizingMaskIntoConstraints = false
         dropTargetCard.contentView = cardStack
         
@@ -73,13 +73,13 @@ public final class SingleMetricWidgetPreviewView: NSView {
         simulatedBar.cornerRadius = 6
         simulatedBar.fillColor = NSColor.black.withAlphaComponent(0.25)
         simulatedBar.translatesAutoresizingMaskIntoConstraints = false
-        simulatedBar.heightAnchor.constraint(greaterThanOrEqualToConstant: 42).isActive = true
+        simulatedBar.heightAnchor.constraint(greaterThanOrEqualToConstant: 52).isActive = true
         
         let barStack = NSStackView()
         barStack.orientation = .horizontal
         barStack.alignment = .centerY
         barStack.spacing = 12
-        barStack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+        barStack.edgeInsets = NSEdgeInsets(top: 8, left: 18, bottom: 8, right: 18)
         barStack.translatesAutoresizingMaskIntoConstraints = false
         simulatedBar.contentView = barStack
         
@@ -106,7 +106,7 @@ public final class SingleMetricWidgetPreviewView: NSView {
         barStack.addArrangedSubview(spacer)
         
         cardStack.addArrangedSubview(simulatedBar)
-        simulatedBar.widthAnchor.constraint(equalTo: cardStack.widthAnchor).isActive = true
+        simulatedBar.widthAnchor.constraint(equalTo: cardStack.widthAnchor, constant: -48).isActive = true
         
         // Tray of hidden parts (drop a part here to remove it from the bar)
         let trayTitle = NSTextField(labelWithString: "Elements – drag them into the bar, or drag one back here to remove it")
@@ -114,7 +114,7 @@ public final class SingleMetricWidgetPreviewView: NSView {
         trayTitle.textColor = NSColor.secondaryLabelColor
         cardStack.addArrangedSubview(trayTitle)
         cardStack.addArrangedSubview(editor.tray)
-        editor.tray.widthAnchor.constraint(equalTo: cardStack.widthAnchor).isActive = true
+        editor.tray.widthAnchor.constraint(equalTo: cardStack.widthAnchor, constant: -48).isActive = true
         
         // Drop hint label
         dropHintLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)

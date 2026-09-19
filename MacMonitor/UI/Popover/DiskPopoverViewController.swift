@@ -32,7 +32,7 @@ public final class DiskPopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -102,15 +102,16 @@ public final class DiskPopoverViewController: NSViewController {
         let totalFormatted = DiskStats.formatBytes(root.totalBytes)
         let freeFormatted = DiskStats.formatBytes(root.freeBytes)
         
-        breakdownCard.setBadge("\(usedFormatted) / \(totalFormatted) (\(Int(round(root.usedPercentage)))%)")
-        usedRow.setValue(usedFormatted)
+        let sev = Severity.level(root.usedPercentage, warning: 75, danger: 90)
+        breakdownCard.setBadge("\(usedFormatted) / \(totalFormatted) (\(Int(round(root.usedPercentage)))%)", tint: sev.textTint)
+        usedRow.setValue(usedFormatted, tint: sev.textTint)
         freeRow.setValue(freeFormatted)
         totalRow.setValue(totalFormatted)
         
         if root.totalBytes > 0 {
             let usedRatio = Double(root.usedBytes) / Double(root.totalBytes)
             storageBar.setSegments([
-                BarSegment(ratio: usedRatio, color: .systemPurple),
+                BarSegment(ratio: usedRatio, color: sev.color(normal: .systemPurple)),
                 BarSegment(ratio: 1.0 - usedRatio, color: .systemGreen)
             ])
         }
@@ -189,8 +190,9 @@ final class VolumeItemView: NSView {
         valueLabel.stringValue = "\(freeStr) free"
         if volume.totalBytes > 0 {
             let usedRatio = Double(volume.usedBytes) / Double(volume.totalBytes)
+            let sev = Severity.level(usedRatio * 100, warning: 75, danger: 90)
             bar.setSegments([
-                BarSegment(ratio: usedRatio, color: .systemPurple),
+                BarSegment(ratio: usedRatio, color: sev.color(normal: .systemPurple)),
                 BarSegment(ratio: 1.0 - usedRatio, color: .systemGreen)
             ])
         }

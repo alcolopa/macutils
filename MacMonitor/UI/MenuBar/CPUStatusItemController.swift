@@ -6,6 +6,8 @@ public final class CPUStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = CPUBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = CPUPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
@@ -135,7 +137,6 @@ final class CPUBarItemView: NSView {
     }
     
     private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
-        let theme = AppPreferences.shared.colorTheme
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
         
@@ -148,17 +149,25 @@ final class CPUBarItemView: NSView {
                 width: 18.0,
                 height: 12.0
             )
+            // Outline shows the full (100%) extent so each bar reads against its maximum
+            let outline = CGPath(roundedRect: barArea.insetBy(dx: -2, dy: -2), cornerWidth: 3, cornerHeight: 3, transform: nil)
+            context.saveGState()
+            context.setStrokeColor(textColor.withAlphaComponent(0.55).cgColor)
+            context.setLineWidth(1.0)
+            context.addPath(outline)
+            context.strokePath()
+            context.restoreGState()
             StatusItemRenderer.drawBarsOnly(
                 in: context,
                 rect: barArea,
                 values: recentValues,
                 barCount: 4,
-                primaryColor: theme.primaryColor
+                primaryColor: textColor
             )
             
         case .verticalBar:
             let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
-            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: currentUsage, fillColor: theme.primaryColor)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: currentUsage, fillColor: textColor)
             
         case .circularGauge:
             let gaugeSize: CGFloat = 15.0
@@ -172,7 +181,7 @@ final class CPUBarItemView: NSView {
                 in: context,
                 rect: gaugeRect,
                 percentage: currentUsage,
-                fillColor: theme.primaryColor
+                fillColor: textColor
             )
             
         case .textOnly:

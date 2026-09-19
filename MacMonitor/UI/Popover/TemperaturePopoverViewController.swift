@@ -34,7 +34,7 @@ public final class TemperaturePopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -53,7 +53,7 @@ public final class TemperaturePopoverViewController: NSViewController {
         // 1. History Graph
         let graphCard = MetricCardView(title: "Thermal History (60s)")
         graphView.heightAnchor.constraint(equalToConstant: 85).isActive = true
-        graphView.series1Color = .systemOrange
+        graphView.series1Color = AppPreferences.shared.colorTheme.primaryColor
         graphView.maxDisplayValue = 105.0
         graphCard.addContentSubview(graphView)
         container.addArrangedSubview(graphCard)
@@ -97,10 +97,12 @@ public final class TemperaturePopoverViewController: NSViewController {
             }
         }
         
+        let sev = Severity.level(stats.cpuTemperature, warning: 80, danger: 95)
+        graphView.series1Color = sev.color(normal: AppPreferences.shared.colorTheme.primaryColor)
         graphView.push(val1: stats.cpuTemperature)
-        overviewCard.setBadge(formatTemp(stats.cpuTemperature))
+        overviewCard.setBadge(formatTemp(stats.cpuTemperature), tint: sev.textTint)
         
-        cpuRow.setValue(formatTemp(stats.cpuTemperature))
+        cpuRow.setValue(formatTemp(stats.cpuTemperature), tint: sev.textTint)
         if let gpu = stats.gpuTemperature {
             gpuRow.setValue(formatTemp(gpu))
         } else {

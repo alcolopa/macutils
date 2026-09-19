@@ -6,6 +6,8 @@ public final class TemperatureStatusItemController: NSObject, NSPopoverDelegate 
     private let barView = TemperatureBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = TemperaturePopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
@@ -137,9 +139,9 @@ final class TemperatureBarItemView: NSView {
         
         let tempColor: NSColor
         if currentTemp > 85.0 {
-            tempColor = .systemRed
+            tempColor = textColor
         } else if currentTemp > 70.0 {
-            tempColor = .systemOrange
+            tempColor = textColor
         } else {
             tempColor = textColor
         }

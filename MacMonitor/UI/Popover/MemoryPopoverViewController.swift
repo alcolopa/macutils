@@ -42,7 +42,7 @@ public final class MemoryPopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -152,7 +152,8 @@ public final class MemoryPopoverViewController: NSViewController {
     
     public func update(stats: MemoryStats) {
         let theme = AppPreferences.shared.colorTheme
-        graphView.series1Color = theme.secondaryColor
+        let usedSev = Severity.level(stats.usedPercentage, warning: 75, danger: 90)
+        graphView.series1Color = usedSev.color(normal: theme.secondaryColor)
         graphView.push(val1: stats.usedPercentage)
         
         pressureCard.setBadge(stats.pressureState.rawValue)
@@ -160,7 +161,7 @@ public final class MemoryPopoverViewController: NSViewController {
         let pressureColor: NSColor
         switch stats.pressureState {
         case .normal:   pressureColor = .systemGreen
-        case .warning:  pressureColor = .systemYellow
+        case .warning:  pressureColor = .systemOrange
         case .critical: pressureColor = .systemRed
         }
         pressureBar.setSegments([
@@ -170,7 +171,7 @@ public final class MemoryPopoverViewController: NSViewController {
         let gb = 1024.0 * 1024.0 * 1024.0
         let totalGB = Double(stats.totalBytes) / gb
         let usedGB = Double(stats.usedBytes) / gb
-        ramCard.setBadge(String(format: "%.1f GB of %.0f GB (%.0f%%)", usedGB, totalGB, stats.usedPercentage))
+        ramCard.setBadge(String(format: "%.1f GB of %.0f GB (%.0f%%)", usedGB, totalGB, stats.usedPercentage), tint: usedSev.textTint)
         
         let appGB = Double(stats.appBytes) / gb
         let wiredGB = Double(stats.wiredBytes) / gb
@@ -185,7 +186,7 @@ public final class MemoryPopoverViewController: NSViewController {
         if stats.totalBytes > 0 {
             let total = Double(stats.totalBytes)
             ramBar.setSegments([
-                BarSegment(ratio: Double(stats.appBytes) / total, color: .systemBlue),
+                BarSegment(ratio: Double(stats.appBytes) / total, color: usedSev.color(normal: .systemBlue)),
                 BarSegment(ratio: Double(stats.wiredBytes) / total, color: .systemIndigo),
                 BarSegment(ratio: Double(stats.compressedBytes) / total, color: .systemTeal),
                 BarSegment(ratio: Double(stats.freeBytes) / total, color: .systemGreen)

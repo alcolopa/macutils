@@ -6,6 +6,8 @@ public final class MemoryStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = MemoryBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = MemoryPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
@@ -87,7 +89,6 @@ final class MemoryBarItemView: NSView {
     private var stats: MemoryStats?
     private var usedPercentage: Double = 0.0
     private var displayText: String = "0%"
-    private var pressureColor: NSColor = .systemGreen
     
     public override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -118,12 +119,6 @@ final class MemoryBarItemView: NSView {
         self.stats = stats
         self.usedPercentage = stats.usedPercentage
         
-        switch stats.pressureState {
-        case .normal:   self.pressureColor = .systemGreen
-        case .warning:  self.pressureColor = .systemYellow
-        case .critical: self.pressureColor = .systemRed
-        }
-        
         let mode = AppPreferences.shared.memoryDisplayMode
         switch mode {
         case .usedAmount:
@@ -153,7 +148,6 @@ final class MemoryBarItemView: NSView {
     }
     
     private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
-        let theme = AppPreferences.shared.colorTheme
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
         
@@ -175,9 +169,9 @@ final class MemoryBarItemView: NSView {
                 let compFrac = Double(stats.compressedBytes) / total
                 
                 let segments: [(fraction: Double, color: NSColor)] = [
-                    (appFrac, .systemBlue),
-                    (wiredFrac, .systemIndigo),
-                    (compFrac, .systemTeal)
+                    (appFrac, textColor),
+                    (wiredFrac, textColor.withAlphaComponent(0.65)),
+                    (compFrac, textColor.withAlphaComponent(0.35))
                 ]
                 StatusItemRenderer.drawMulticolorCircle(
                     in: context,
@@ -187,9 +181,9 @@ final class MemoryBarItemView: NSView {
                 )
             } else {
                 let segments: [(fraction: Double, color: NSColor)] = [
-                    (0.35, .systemBlue),
-                    (0.15, .systemIndigo),
-                    (0.10, .systemTeal)
+                    (0.35, textColor),
+                    (0.15, textColor.withAlphaComponent(0.65)),
+                    (0.10, textColor.withAlphaComponent(0.35))
                 ]
                 StatusItemRenderer.drawMulticolorCircle(
                     in: context,
@@ -207,7 +201,7 @@ final class MemoryBarItemView: NSView {
                 width: gaugeSize,
                 height: gaugeSize
             )
-            let color: NSColor = (AppPreferences.shared.memoryDisplayMode == .pressure) ? pressureColor : theme.secondaryColor
+            let color: NSColor = textColor
             StatusItemRenderer.drawCircularGauge(
                 in: context,
                 rect: gaugeRect,
@@ -217,7 +211,7 @@ final class MemoryBarItemView: NSView {
             
         case .verticalBar:
             let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
-            let color: NSColor = (AppPreferences.shared.memoryDisplayMode == .pressure) ? pressureColor : theme.secondaryColor
+            let color: NSColor = textColor
             StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: usedPercentage, fillColor: color)
             
         case .barOnly:
@@ -227,7 +221,7 @@ final class MemoryBarItemView: NSView {
                 width: 18.0,
                 height: 7.0
             )
-            let color: NSColor = (AppPreferences.shared.memoryDisplayMode == .pressure) ? pressureColor : theme.secondaryColor
+            let color: NSColor = textColor
             StatusItemRenderer.drawHorizontalBar(
                 in: context,
                 rect: barArea,
@@ -286,13 +280,13 @@ final class MemoryBarItemView: NSView {
             
             let fillColor: CGColor
             if AppPreferences.shared.memoryDisplayMode == .pressure {
-                fillColor = pressureColor.cgColor
+                fillColor = textColor.cgColor
             } else if usedPercentage > 85.0 {
-                fillColor = CGColor(red: 1.0, green: 0.23, blue: 0.19, alpha: 0.9)
+                fillColor = textColor.cgColor
             } else if usedPercentage > 65.0 {
-                fillColor = CGColor(red: 1.0, green: 0.58, blue: 0.0, alpha: 0.9)
+                fillColor = textColor.cgColor
             } else {
-                fillColor = theme.secondaryColor.cgColor
+                fillColor = textColor.cgColor
             }
             
             context.setFillColor(fillColor)

@@ -56,7 +56,7 @@ public enum BarChrome {
         let o = AppPreferences.shared.barOptions(for: metric)
         let isDark = view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let base: NSColor = isDark ? .white : .black
-        let iconColor = o.iconTint == .theme ? AppPreferences.shared.colorTheme.primaryColor : base
+        let iconColor = base
         let iconW = o.iconSize.points
         var cursor = CGFloat(o.padding)
         

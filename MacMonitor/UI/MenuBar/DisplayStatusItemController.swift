@@ -6,6 +6,8 @@ public final class DisplayStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = DisplayBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = DisplayPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     

@@ -6,6 +6,8 @@ public final class BatteryStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = BatteryBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = BatteryPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
@@ -133,7 +135,7 @@ final class BatteryBarItemView: NSView {
     private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
-        let levelColor: NSColor = isCharging ? .systemGreen : (capacity <= 20 ? .systemRed : textColor)
+        let levelColor: NSColor = isCharging ? textColor : textColor
         
         switch style {
         case .verticalBar:
@@ -192,9 +194,9 @@ final class BatteryBarItemView: NSView {
         
         let fillColor: CGColor
         if isCharging {
-            fillColor = CGColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) // Green
+            fillColor = textColor.cgColor // Green
         } else if capacity <= 20 {
-            fillColor = CGColor(red: 1.0, green: 0.23, blue: 0.19, alpha: 1.0) // Red
+            fillColor = textColor.cgColor // Red
         } else {
             fillColor = textColor.cgColor
         }

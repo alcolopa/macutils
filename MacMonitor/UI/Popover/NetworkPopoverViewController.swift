@@ -40,7 +40,7 @@ public final class NetworkPopoverViewController: NSViewController {
     
     private func setupLayout() {
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -60,8 +60,8 @@ public final class NetworkPopoverViewController: NSViewController {
         let graphCard = MetricCardView(title: "Network Activity (60s)")
         graphView.heightAnchor.constraint(equalToConstant: 85).isActive = true
         graphView.maxDisplayValue = -1.0
-        graphView.series1Color = .systemTeal
-        graphView.series2Color = .systemOrange
+        graphView.series1Color = AppPreferences.shared.colorTheme.primaryColor
+        graphView.series2Color = AppPreferences.shared.colorTheme.contrastColor
         graphCard.addContentSubview(graphView)
         container.addArrangedSubview(graphCard)
         

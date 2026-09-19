@@ -35,7 +35,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 appliedWeather = weatherNow
                 poller?.reconfigure()   // restarts the weather timer, which also refetches right away
             }
-            self?.rebuildControllersInOrder()
+            // Update in place (no destroy/recreate) so the widgets don't blink while settings change.
+            self?.refreshControllers()
         }
         
         prefs.onOrderChanged = { [weak self] in
@@ -66,6 +67,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupMainMenu()
         
+        // Close any open popover when the user switches Spaces, so it can be reopened on the new one.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.closeAllPopovers() }
+        }
+        
         if CommandLine.arguments.contains("--preferences") || CommandLine.arguments.contains("--settings") {
             DispatchQueue.main.async {
                 PreferencesWindowController.shared.showPreferences()
@@ -82,7 +90,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Quit MacMonitor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        // Cmd+Q only closes the front window (e.g. Preferences); the app keeps running in the menu bar.
+        // Quitting is still available from the status item menu.
+        appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         
         let editMenuItem = NSMenuItem()
@@ -173,6 +183,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         syncItemVisibility()
+    }
+    
+    private func closeAllPopovers() {
+        cpuController?.closePopover()
+        memoryController?.closePopover()
+        diskController?.closePopover()
+        networkController?.closePopover()
+        batteryController?.closePopover()
+        tempController?.closePopover()
+        displayController?.closePopover()
+        weatherController?.closePopover()
+    }
+    
+    private func refreshControllers() {
+        syncItemVisibility()
+        cpuController?.syncLength()
+        memoryController?.syncLength()
+        diskController?.syncLength()
+        networkController?.syncLength()
+        batteryController?.syncLength()
+        tempController?.syncLength()
+        displayController?.syncLength()
+        weatherController?.syncLength()
     }
     
     private func syncItemVisibility() {

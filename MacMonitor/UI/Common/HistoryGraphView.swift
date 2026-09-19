@@ -10,6 +10,10 @@ public final class HistoryGraphView: NSView {
     private var series2Buffer: [Double] = Array(repeating: 0.0, count: capacity)
     private var hasSeries2: Bool = false
     
+    // Multi-series mode (e.g. one line per CPU core); when non-empty it replaces series 1/2.
+    private var multiBuffers: [[Double]] = []
+    public var multiColors: [NSColor] = []
+    
     private var writeIndex: Int = 0
     private var count: Int = 0
     private let lock = NSLock()
@@ -46,6 +50,20 @@ public final class HistoryGraphView: NSView {
         needsDisplay = true
     }
     
+    /// Pushes one sample per series (e.g. per core). Draws each as its own line, coloured from `multiColors`.
+    public func pushMulti(_ values: [Double]) {
+        lock.lock()
+        if multiBuffers.count != values.count {
+            multiBuffers = Array(repeating: Array(repeating: 0.0, count: Self.capacity), count: values.count)
+        }
+        for (i, v) in values.enumerated() { multiBuffers[i][writeIndex] = v }
+        writeIndex = (writeIndex + 1) % Self.capacity
+        if count < Self.capacity { count += 1 }
+        lock.unlock()
+        
+        needsDisplay = true
+    }
+    
     public override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
@@ -65,6 +83,12 @@ public final class HistoryGraphView: NSView {
             if s2Enabled {
                 s2Snapshot[Self.capacity - total + i] = series2Buffer[idx]
             }
+        }
+        var multiSnapshots: [[Double]] = []
+        for buf in multiBuffers {
+            var snap = [Double](repeating: 0.0, count: Self.capacity)
+            for i in 0..<total { snap[Self.capacity - total + i] = buf[(startIndex + i) % Self.capacity] }
+            multiSnapshots.append(snap)
         }
         lock.unlock()
         
@@ -100,6 +124,15 @@ public final class HistoryGraphView: NSView {
             scaleMax = max(peak1, peak2, 1024.0) * 1.2
         }
         
+        if !multiSnapshots.isEmpty {
+            for (i, snap) in multiSnapshots.enumerated() {
+                let color = multiColors.isEmpty ? NSColor.systemBlue : multiColors[i % multiColors.count]
+                drawSeries(in: context, rect: rect, values: snap, maxVal: scaleMax, color: color, filled: false)
+            }
+            context.restoreGState()
+            return
+        }
+        
         if s2Enabled {
             drawSeries(in: context, rect: rect, values: s2Snapshot, maxVal: scaleMax, color: series2Color)
         }
@@ -108,7 +141,7 @@ public final class HistoryGraphView: NSView {
         context.restoreGState()
     }
     
-    private func drawSeries(in context: CGContext, rect: CGRect, values: [Double], maxVal: Double, color: NSColor) {
+    private func drawSeries(in context: CGContext, rect: CGRect, values: [Double], maxVal: Double, color: NSColor, filled: Bool = true) {
         let pointCount = values.count
         guard pointCount > 1 else { return }
         
@@ -139,17 +172,19 @@ public final class HistoryGraphView: NSView {
         fillPath.closeSubpath()
         
         // Fill
-        context.saveGState()
-        context.addPath(fillPath)
-        context.setFillColor(color.withAlphaComponent(0.25).cgColor)
-        context.fillPath()
-        context.restoreGState()
+        if filled {
+            context.saveGState()
+            context.addPath(fillPath)
+            context.setFillColor(color.withAlphaComponent(0.25).cgColor)
+            context.fillPath()
+            context.restoreGState()
+        }
         
         // Stroke
         context.saveGState()
         context.addPath(strokePath)
         context.setStrokeColor(color.cgColor)
-        context.setLineWidth(1.5)
+        context.setLineWidth(filled ? 1.5 : 1.2)
         context.setLineJoin(.round)
         context.strokePath()
         context.restoreGState()

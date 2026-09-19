@@ -6,6 +6,8 @@ public final class WeatherStatusItemController: NSObject, NSPopoverDelegate {
     private let barView = WeatherBarItemView(frame: NSRect(x: 0, y: 0, width: 64, height: 22))
     private let popover = NSPopover()
     private let popoverVC = WeatherPopoverViewController()
+
+    public func closePopover() { if popover.isShown { popover.close() } }
     
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     public var onRefreshRequested: (@Sendable () -> Void)?
@@ -212,8 +214,8 @@ public final class WeatherBarItemView: NSView {
         case .highLow:
             func t(_ c: Double) -> String { "\(Int(round(isFahrenheit ? c * 9.0 / 5.0 + 32.0 : c)))°" }
             let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .semibold)
-            let hi = NSAttributedString(string: "↑" + t(current.tempMax), attributes: [.font: font, .foregroundColor: NSColor.systemOrange])
-            let lo = NSAttributedString(string: "↓" + t(current.tempMin), attributes: [.font: font, .foregroundColor: NSColor.systemTeal])
+            let hi = NSAttributedString(string: "↑" + t(current.tempMax), attributes: [.font: font, .foregroundColor: textColor])
+            let lo = NSAttributedString(string: "↓" + t(current.tempMin), attributes: [.font: font, .foregroundColor: textColor])
             hi.draw(at: CGPoint(x: (rect.width - hi.size().width) / 2.0, y: rect.height / 2.0 + 0.5))
             lo.draw(at: CGPoint(x: (rect.width - lo.size().width) / 2.0, y: 1.0))
             

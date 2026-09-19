@@ -51,7 +51,8 @@ public final class MetricRowView: NSView {
         ])
     }
     
-    public func setValue(_ text: String) {
+    public func setValue(_ text: String, tint: NSColor? = nil) {
         valView.stringValue = text
+        valView.textColor = tint ?? NSColor.labelColor
     }
 }
