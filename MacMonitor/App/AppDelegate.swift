@@ -13,11 +13,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private var poller: AdaptivePoller?
     
+    /// Bundle.module traps if the resource bundle isn't at the .app root, so look in the
+    /// places it can actually live (Contents/Resources in the app, next to the binary for `swift run`).
+    private static func loadDevIcon() -> NSImage? {
+        let name = "MacMonitor_MacMonitor.bundle"
+        let dirs = [Bundle.main.resourceURL, Bundle.main.bundleURL, Bundle.main.executableURL?.deletingLastPathComponent()]
+        for dir in dirs.compactMap({ $0 }) {
+            if let bundle = Bundle(url: dir.appendingPathComponent(name)),
+               let url = bundle.url(forResource: "AppIcon", withExtension: "jpg"),
+               let icon = NSImage(contentsOf: url) {
+                return icon
+            }
+        }
+        return nil
+    }
+
     public func applicationDidFinishLaunching(_ notification: Notification) {
         let prefs = AppPreferences.shared
         
-        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "jpg"),
-           let icon = NSImage(contentsOf: url) {
+        if let icon = Self.loadDevIcon() {
             NSApp.applicationIconImage = icon
         }
         

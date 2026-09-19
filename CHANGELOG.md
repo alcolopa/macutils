@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Fix: the downloaded release crashed at launch ("could not load resource bundle"); it only worked on the machine that built it
+
 ## 1.0.0
 
 - First stable release
