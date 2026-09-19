@@ -4,8 +4,18 @@ A lightweight menu bar system monitor for macOS: CPU, memory, disk, network, bat
 
 ## Install
 
-Download the latest `MacMonitor-<version>.zip` from [Releases](../../releases), unzip it and move `MacMonitor.app` to `/Applications`.
-The build is ad-hoc signed, so on first launch right-click the app → **Open** (or allow it in System Settings → Privacy & Security).
+1. Download the latest `MacMonitor-<version>.zip` from [Releases](../../releases), unzip it and move `MacMonitor.app` to `/Applications`.
+2. Open it. macOS will likely say **"Apple could not verify "MacMonitor" is free of malware"**. This is expected: MacMonitor is open source and built by GitHub Actions from this repo, but it isn't signed with a paid Apple Developer ID or notarized, so Gatekeeper blocks every app downloaded this way. To allow it, do **one** of:
+   - **Terminal (quickest):**
+     ```sh
+     xattr -dr com.apple.quarantine /Applications/MacMonitor.app
+     ```
+     then open the app normally.
+   - **System Settings:** open the app once (it will be blocked), go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the MacMonitor message, then confirm.
+
+You only need to do this once per download. If you'd rather not trust a prebuilt binary, [build it from source](#build-from-source) instead. A local build isn't quarantined, so there's no warning.
+
+If you're upgrading, quit the running MacMonitor first (menu bar item → Quit). Otherwise opening the new copy just brings the old one forward.
 
 Enable **Launch MacMonitor at login** in Preferences → General.
 
