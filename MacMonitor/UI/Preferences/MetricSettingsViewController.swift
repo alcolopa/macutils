@@ -1,24 +1,15 @@
 import AppKit
 
-public final class MetricSettingsViewController: NSViewController, WidgetStylePickerViewDelegate, SingleMetricWidgetPreviewDelegate {
+public final class MetricSettingsViewController: NSViewController, SingleMetricWidgetPreviewDelegate {
     private let metric: MetricType
     private let prefs = AppPreferences.shared
     
     private let livePreview: MenuBarLivePreviewView
     private let widgetPreview: SingleMetricWidgetPreviewView
-    private let stylePicker: WidgetStylePickerView
     
     private let enableCheck = NSButton(checkboxWithTitle: "Enable status bar item", target: nil, action: nil)
-    private let displayStylePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     
     // Menu bar appearance controls
-    private let iconCheck = NSButton()
-    private let labelCheck = NSButton()
-    private let iconPositionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let iconSizePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let iconTintPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let paddingSlider = NSSlider(value: 0, minValue: 0, maxValue: 12, target: nil, action: nil)
-    private let paddingValueLabel = NSTextField(labelWithString: "0 pt")
     
     // Module specific controls
     private let memModePopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -28,6 +19,7 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
     private let apiKeyField = NSSecureTextField()
     private let cityField = NSTextField()
     private let weatherIntervalPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let forecastModePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let testKeyButton = NSButton(title: "Test Connection", target: nil, action: nil)
     private let testStatusLabel = NSTextField(labelWithString: "")
     
@@ -35,7 +27,6 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
         self.metric = metric
         self.livePreview = MenuBarLivePreviewView(focusedMetric: metric)
         self.widgetPreview = SingleMetricWidgetPreviewView(metric: metric)
-        self.stylePicker = WidgetStylePickerView(metric: metric)
         super.init(nibName: nil, bundle: nil)
         self.title = metric.displayName
     }
@@ -66,7 +57,9 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
     public override func viewDidLoad() {
         super.viewDidLoad()
         widgetPreview.delegate = self
-        stylePicker.delegate = self
+        widgetPreview.onLayoutChanged = { [weak self] in
+            self?.livePreview.refreshPreview()
+        }
     }
     
     private func setupUI(in container: NSView, parentScrollView: NSScrollView) {
@@ -78,11 +71,9 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
         stack.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(stack)
         
-        // 1. Preview + style picker
+        // 1. Widget builder (drag elements into the bar)
         stack.addArrangedSubview(SettingsLayout.card(title: "\(metric.displayName) Preview", [
-            widgetPreview,
-            SettingsLayout.paragraph("Pick a style below (click, or drag it onto the preview).", small: true),
-            stylePicker
+            widgetPreview
         ]))
         
         // 3. Basic settings
@@ -91,63 +82,9 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
         enableCheck.target = self
         enableCheck.action = #selector(onToggleVisibility)
         
-        let availableStyles = AppPreferences.availableStyles(for: metric)
-        displayStylePopup.removeAllItems()
-        for style in availableStyles { displayStylePopup.addItem(withTitle: style.displayName) }
-        displayStylePopup.selectItem(withTitle: prefs.displayStyle(for: metric).displayName)
-        displayStylePopup.target = self
-        displayStylePopup.action = #selector(onDisplayStyleChanged)
-        
         stack.addArrangedSubview(SettingsLayout.card(title: "Widget", [
-            SettingsLayout.row("Visibility", enableCheck),
-            SettingsLayout.row("Style", displayStylePopup)
+            SettingsLayout.row("Visibility", enableCheck)
         ]))
-        
-        // 4. Appearance customisation (icon, label, padding)
-        let opts = prefs.barOptions(for: metric)
-        iconCheck.state = opts.showIcon ? .on : .off
-        labelCheck.state = opts.showLabel ? .on : .off
-        configureChip(iconCheck, title: "Icon", symbol: metric.iconSymbolName)
-        configureChip(labelCheck, title: "Label", symbol: "textformat")
-        let chipRow = NSStackView(views: [iconCheck, labelCheck])
-        chipRow.orientation = .horizontal
-        chipRow.spacing = 10
-        chipRow.distribution = .fillEqually
-        
-        iconPositionPopup.removeAllItems()
-        iconPositionPopup.addItems(withTitles: BarIconPosition.allCases.map { $0.rawValue })
-        iconPositionPopup.selectItem(withTitle: opts.iconPosition.rawValue)
-        iconSizePopup.removeAllItems()
-        iconSizePopup.addItems(withTitles: BarIconSize.allCases.map { $0.rawValue })
-        iconSizePopup.selectItem(withTitle: opts.iconSize.rawValue)
-        iconTintPopup.removeAllItems()
-        iconTintPopup.addItems(withTitles: BarIconTint.allCases.map { $0.rawValue })
-        iconTintPopup.selectItem(withTitle: opts.iconTint.rawValue)
-        for pop in [iconPositionPopup, iconSizePopup, iconTintPopup] { pop.target = self; pop.action = #selector(onBarOptionChanged) }
-        
-        paddingSlider.minValue = 0
-        paddingSlider.maxValue = 12
-        paddingSlider.doubleValue = opts.padding
-        paddingSlider.target = self
-        paddingSlider.action = #selector(onBarOptionChanged)
-        paddingValueLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        paddingValueLabel.stringValue = "\(Int(opts.padding)) pt"
-        paddingValueLabel.translatesAutoresizingMaskIntoConstraints = false
-        paddingValueLabel.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        
-        var appearanceRows: [NSView] = []
-        if metric == .weather {
-            appearanceRows.append(SettingsLayout.paragraph("The weather widget already shows a live condition icon, so an extra icon is off by default.", small: true))
-        }
-        appearanceRows += [
-            SettingsLayout.paragraph("Click a box to turn that part of the widget on or off."),
-            chipRow,
-            SettingsLayout.row("Icon position", iconPositionPopup),
-            SettingsLayout.row("Icon size", iconSizePopup),
-            SettingsLayout.row("Icon colour", iconTintPopup),
-            SettingsLayout.row("Padding", paddingSlider, trailing: paddingValueLabel)
-        ]
-        stack.addArrangedSubview(SettingsLayout.card(title: "Menu Bar Appearance", appearanceRows))
         
         // 5. Module-specific options + about text
         let moduleRows = NSStackView()
@@ -162,13 +99,6 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
                 "CPU Activity provides real-time telemetry into Apple Silicon and Intel processor utilization. " +
                 "The engine samples per-core Mach ticks directly from the Darwin kernel to accurately capture User, System, " +
                 "and Idle workloads, as well as 1-minute, 5-minute, and 15-minute system load averages."
-            )
-            let p2 = SettingsLayout.paragraph(
-                "Customization options:\n" +
-                "• Bar Only: Compact miniature load activity bars with zero clutter.\n" +
-                "• Standard: Clean percentage readout paired with a 5-sample live sparkline.\n" +
-                "• Circular Gauge: Minimalist circular ring reflecting overall processor load.\n" +
-                "• Text Only: Clean, legible percentage with lowest menubar footprint."
             )
             moduleRows.addArrangedSubview(p1)
             
@@ -367,6 +297,19 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
             intervalRow.spacing = 8
             moduleRows.addArrangedSubview(intervalRow)
             
+            // 5. Forecast view: daily or every 3 hours
+            let forecastTitle = NSTextField(labelWithString: "Forecast:")
+            forecastTitle.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+            forecastModePopup.removeAllItems()
+            forecastModePopup.addItems(withTitles: WeatherForecastMode.allCases.map { $0.rawValue })
+            forecastModePopup.selectItem(withTitle: prefs.weatherForecastMode.rawValue)
+            forecastModePopup.target = self
+            forecastModePopup.action = #selector(onForecastModeChanged)
+            let forecastRow = NSStackView(views: [forecastTitle, forecastModePopup])
+            forecastRow.orientation = .horizontal
+            forecastRow.spacing = 8
+            moduleRows.addArrangedSubview(forecastRow)
+            
             let p1 = SettingsLayout.paragraph(
                 "OpenWeatherMap provides high-resolution global weather telemetry. " +
                 "You can obtain a completely free API key by registering at openweathermap.org. " +
@@ -383,7 +326,12 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
         }
         
         
-        stack.addArrangedSubview(SettingsLayout.card(title: metric == .weather ? "Weather Service" : "About", [moduleRows]))
+        let moduleCard = SettingsLayout.card(title: metric == .weather ? "Weather Service" : "About", [moduleRows])
+        if metric == .weather {
+            stack.addArrangedSubview(moduleCard)
+        } else {
+            stack.insertArrangedSubview(moduleCard, at: 0)   // About goes at the top of the page
+        }
         
         // Critical auto-layout fix: constrain content width to scroll view width so text wraps cleanly
         // Every card spans the full page width (minus side insets) so edges line up
@@ -425,19 +373,17 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
     
     // MARK: - WidgetStylePickerViewDelegate & Drop
     
-    public func widgetStylePickerView(_ picker: WidgetStylePickerView, didSelectStyle style: MetricDisplayStyle) {
-        applyStyle(style)
-    }
-    
+    /// Dropping a style on the preview (outside the bar) adds it at the end.
     public func singleMetricWidgetPreview(_ preview: SingleMetricWidgetPreviewView, didDropStyle style: MetricDisplayStyle) {
-        applyStyle(style)
+        var o = prefs.barOptions(for: metric)
+        guard !o.order.contains(.element(style)) else { return }
+        o.order.append(.element(style))
+        saveLayout(o)
     }
     
-    private func applyStyle(_ style: MetricDisplayStyle) {
-        prefs.setDisplayStyle(style, for: metric)
-        displayStylePopup.selectItem(withTitle: style.displayName)
+    private func saveLayout(_ o: BarOptions) {
+        prefs.setBarOptions(o, for: metric)
         widgetPreview.refreshPreview()
-        stylePicker.refreshStyles()
         livePreview.refreshPreview()
     }
     
@@ -459,51 +405,9 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
         livePreview.refreshPreview()
     }
     
-    private func configureChip(_ b: NSButton, title: String, symbol: String) {
-        b.setButtonType(.pushOnPushOff)
-        b.bezelStyle = .rounded
-        b.title = title
-        b.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-        b.imagePosition = .imageLeading
-        b.controlSize = .large
-        b.translatesAutoresizingMaskIntoConstraints = false
-        b.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        b.target = self
-        b.action = #selector(onBarOptionChanged)
-        updateChip(b)
-    }
-    
-    private func updateChip(_ b: NSButton) {
-        b.bezelColor = b.state == .on ? .controlAccentColor : nil
-        b.contentTintColor = b.state == .on ? .white : .secondaryLabelColor
-    }
-    
-    @objc private func onBarOptionChanged() {
-        updateChip(iconCheck)
-        updateChip(labelCheck)
-        var o = prefs.barOptions(for: metric)
-        o.showIcon = iconCheck.state == .on
-        o.showLabel = labelCheck.state == .on
-        o.iconPosition = iconPositionPopup.titleOfSelectedItem.flatMap(BarIconPosition.init(rawValue:)) ?? o.iconPosition
-        o.iconSize = iconSizePopup.titleOfSelectedItem.flatMap(BarIconSize.init(rawValue:)) ?? o.iconSize
-        o.iconTint = iconTintPopup.titleOfSelectedItem.flatMap(BarIconTint.init(rawValue:)) ?? o.iconTint
-        o.padding = round(paddingSlider.doubleValue)
-        paddingValueLabel.stringValue = "\(Int(o.padding)) pt"
-        prefs.setBarOptions(o, for: metric)
-        livePreview.refreshPreview()
-    }
-    
     @objc private func onToggleVisibility() {
         prefs.setMetricVisible(metric, visible: enableCheck.state == .on)
         livePreview.refreshPreview()
-    }
-    
-    @objc private func onDisplayStyleChanged() {
-        guard let title = displayStylePopup.titleOfSelectedItem else { return }
-        let available = AppPreferences.availableStyles(for: metric)
-        if let match = available.first(where: { $0.displayName == title }) {
-            applyStyle(match)
-        }
     }
     
     @objc private func onMemModeChanged() {
@@ -514,7 +418,6 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
         default: break
         }
         widgetPreview.refreshPreview()
-        stylePicker.refreshStyles()
         livePreview.refreshPreview()
     }
     
@@ -523,7 +426,6 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
               let unit = TemperatureUnit(rawValue: title) else { return }
         prefs.temperatureUnit = unit
         widgetPreview.refreshPreview()
-        stylePicker.refreshStyles()
         livePreview.refreshPreview()
     }
     
@@ -539,6 +441,12 @@ public final class MetricSettingsViewController: NSViewController, WidgetStylePi
     
     @objc private func onCityChanged() {
         prefs.weatherCity = cityField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    @objc private func onForecastModeChanged() {
+        if let mode = forecastModePopup.titleOfSelectedItem.flatMap(WeatherForecastMode.init(rawValue:)) {
+            prefs.weatherForecastMode = mode
+        }
     }
     
     @objc private func onWeatherIntervalChanged() {

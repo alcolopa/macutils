@@ -86,6 +86,8 @@ public final class NetworkStatusItemController: NSObject, NSPopoverDelegate {
 final class NetworkBarItemView: NSView {
     private var inSpeedText: String = "⇣0K"
     private var outSpeedText: String = "⇡0K"
+    private var inFraction: Double = 0
+    private var outFraction: Double = 0
     private var compactSpeedText: String = "0K"
     
     public override init(frame frameRect: NSRect) {
@@ -98,14 +100,17 @@ final class NetworkBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .network)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .textOnly:
-            return NSSize(width: 44, height: 22)
-        default:
-            return NSSize(width: 52, height: 22)
+        case .standard: return 52
+        case .textOnly: return 70
+        case .verticalBar: return 22
+        default: return 52
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .network, widthFor: width(for:)), height: 22)
     }
     
     public func updateNetwork(stats: NetworkStats) {
@@ -141,6 +146,14 @@ final class NetworkBarItemView: NSView {
             compactSpeedText = String(format: "%.0fK/s", kbTotal)
         }
         
+        // Scale bars logarithmically: 1 KB/s (empty) .. 100 MB/s (full)
+        func fraction(_ bytes: UInt64) -> Double {
+            guard bytes > 1024 else { return 0 }
+            return min(max(log10(Double(bytes) / 1024.0) / 5.0, 0), 1) * 100.0
+        }
+        inFraction = fraction(inSec)
+        outFraction = fraction(outSec)
+        
         invalidateIntrinsicContentSize()
         needsDisplay = true
     }
@@ -148,22 +161,37 @@ final class NetworkBarItemView: NSView {
     public override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         
-        let rect = BarChrome.begin(metric: .network, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .network)
+        BarChrome.draw(metric: .network, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect) {
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
+        _ = textColor
         
         if style == .textOnly {
-            let font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: textColor
-            ]
-            let str = NSAttributedString(string: compactSpeedText, attributes: attrs)
+            // Upload/download arrows on one line, no icon
+            let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+            let str = NSMutableAttributedString(
+                string: outSpeedText,
+                attributes: [.font: font, .foregroundColor: NSColor.systemOrange])
+            str.append(NSAttributedString(string: " ", attributes: [.font: font]))
+            str.append(NSAttributedString(
+                string: inSpeedText,
+                attributes: [.font: font, .foregroundColor: NSColor.systemTeal]))
             let size = str.size()
-            let x = (rect.width - size.width) / 2.0
-            let y = (rect.height - size.height) / 2.0
-            str.draw(at: CGPoint(x: x, y: y))
+            str.draw(at: CGPoint(x: (rect.width - size.width) / 2.0, y: (rect.height - size.height) / 2.0))
+            return
+        }
+        
+        if style == .verticalBar, let context = NSGraphicsContext.current?.cgContext {
+            let barW: CGFloat = 5.0, barH: CGFloat = 16.0, gap: CGFloat = 2.0
+            let x = (rect.width - barW * 2 - gap) / 2.0
+            let y = (rect.height - barH) / 2.0
+            StatusItemRenderer.drawVerticalBar(in: context, rect: CGRect(x: x, y: y, width: barW, height: barH), percentage: outFraction, fillColor: .systemOrange)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: CGRect(x: x + barW + gap, y: y, width: barW, height: barH), percentage: inFraction, fillColor: .systemTeal)
             return
         }
         

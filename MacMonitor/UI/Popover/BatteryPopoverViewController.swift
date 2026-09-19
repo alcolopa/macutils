@@ -108,7 +108,7 @@ public final class BatteryPopoverViewController: NSViewController {
             BarSegment(ratio: 1.0 - frac, color: NSColor.secondaryLabelColor.withAlphaComponent(0.25))
         ])
         
-        healthRow.setValue("\(stats.healthPercentage)% (Normal)")
+        healthRow.setValue("\(stats.healthPercentage)% (\(stats.healthPercentage >= 80 ? "Normal" : "Service Recommended"))")
         cycleRow.setValue("\(stats.cycleCount) cycles")
     }
 }

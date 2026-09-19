@@ -74,7 +74,11 @@ public final class OpenWeatherMapService: Sendable {
         // 1. If location is "auto" or empty, try IP geolocation fallback
         let targetLocation: String
         if locQuery == "auto" {
-            targetLocation = try await fetchAutoLocation()
+            if let coord = await LocationProvider.shared.currentCoordinate() {
+                targetLocation = "coord:\(coord.latitude),\(coord.longitude)"
+            } else {
+                targetLocation = try await fetchAutoLocation()
+            }
         } else {
             targetLocation = locQuery
         }
@@ -130,8 +134,8 @@ public final class OpenWeatherMapService: Sendable {
     // MARK: - Private API Calls
     
     private func fetchCurrentWeather(apiKey: String, location: String) async throws -> WeatherData {
-        guard let encodedLoc = location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://api.openweathermap.org/data/2.5/weather?q=\(encodedLoc)&units=metric&appid=\(apiKey)") else {
+        guard let locQuery = Self.locationQuery(location),
+              let url = URL(string: "https://api.openweathermap.org/data/2.5/weather?\(locQuery)&units=metric&appid=\(apiKey)") else {
             throw NSError(domain: "OpenWeatherMap", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid location encoding"])
         }
         
@@ -177,8 +181,8 @@ public final class OpenWeatherMapService: Sendable {
     }
     
     private func fetchForecast(apiKey: String, location: String) async throws -> [WeatherForecastItem] {
-        guard let encodedLoc = location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://api.openweathermap.org/data/2.5/forecast?q=\(encodedLoc)&units=metric&appid=\(apiKey)") else {
+        guard let locQuery = Self.locationQuery(location),
+              let url = URL(string: "https://api.openweathermap.org/data/2.5/forecast?\(locQuery)&units=metric&appid=\(apiKey)") else {
             return []
         }
         
@@ -191,6 +195,23 @@ public final class OpenWeatherMapService: Sendable {
         
         guard let decoded = try? JSONDecoder().decode(ForecastResponse.self, from: data) else {
             return []
+        }
+        
+        if AppPreferences.shared.weatherForecastMode == .threeHourly {
+            // Next 24 hours in the API's native 3-hour steps
+            return decoded.list.prefix(8).map { entry in
+                let cond = entry.weather.first.map {
+                    WeatherCondition(id: $0.id, main: $0.main, description: $0.description.capitalized, icon: $0.icon)
+                } ?? WeatherCondition(id: 800, main: "Clear", description: "Clear Sky", icon: "01d")
+                return WeatherForecastItem(
+                    date: Date(timeIntervalSince1970: entry.dt),
+                    temperature: entry.main.temp,
+                    tempMin: entry.main.temp_min,
+                    tempMax: entry.main.temp_max,
+                    condition: cond,
+                    precipitationChance: entry.pop ?? 0.0
+                )
+            }
         }
         
         // Aggregate the 3-hourly entries into one item per local calendar day
@@ -223,6 +244,17 @@ public final class OpenWeatherMapService: Sendable {
         }
     }
     
+    /// Builds the OpenWeatherMap location query: `lat=..&lon=..` for "coord:lat,lon", otherwise `q=<name>`.
+    private static func locationQuery(_ location: String) -> String? {
+        if location.hasPrefix("coord:") {
+            let parts = location.dropFirst("coord:".count).split(separator: ",")
+            guard parts.count == 2 else { return nil }
+            return "lat=\(parts[0])&lon=\(parts[1])"
+        }
+        guard let encoded = location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return nil }
+        return "q=\(encoded)"
+    }
+
     private func fetchAutoLocation() async throws -> String {
         // Lightweight IP geolocation fallback using free ip-api endpoint
         guard let url = URL(string: "http://ip-api.com/json/?fields=city,country") else {

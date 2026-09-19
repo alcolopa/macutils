@@ -141,6 +141,33 @@ public enum StatusItemRenderer {
     }
     
     /// Renders a horizontal capsule bar with track and fill.
+    /// Vertical level bar: rounded track with a fill growing from the bottom.
+    public static func drawVerticalBar(
+        in context: CGContext,
+        rect: CGRect,
+        percentage: Double,
+        fillColor: NSColor,
+        trackColor: NSColor = NSColor.separatorColor.withAlphaComponent(0.3)
+    ) {
+        guard rect.width > 0 && rect.height > 0 else { return }
+        
+        context.saveGState()
+        
+        let radius = rect.width / 2.0
+        context.setFillColor(trackColor.cgColor)
+        context.addPath(CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        context.fillPath()
+        
+        let fraction = CGFloat(min(max(percentage / 100.0, 0.0), 1.0))
+        let fillHeight = max(rect.height * fraction, 1.5)
+        let fillRect = CGRect(x: rect.origin.x, y: rect.origin.y, width: rect.width, height: fillHeight)
+        context.setFillColor(fillColor.cgColor)
+        context.addPath(CGPath(roundedRect: fillRect, cornerWidth: radius, cornerHeight: min(radius, fillHeight / 2.0), transform: nil))
+        context.fillPath()
+        
+        context.restoreGState()
+    }
+    
     public static func drawHorizontalBar(
         in context: CGContext,
         rect: CGRect,

@@ -10,12 +10,15 @@ public protocol SingleMetricWidgetPreviewDelegate: AnyObject {
 @MainActor
 public final class SingleMetricWidgetPreviewView: NSView {
     public weak var delegate: SingleMetricWidgetPreviewDelegate?
+    /// Called after the user rearranges the widget's parts (icon / label / value).
+    public var onLayoutChanged: (() -> Void)?
     
     private let metric: MetricType
     private let liveContainer = NSView()
-    private let dropTargetCard = NSBox()
-    private let dropHintLabel = NSTextField(labelWithString: "Drop style here to apply")
+    private let dropTargetCard = StageBox()
+    private let dropHintLabel = NSTextField(labelWithString: "Drag elements into the bar to build your widget")
     private let placementLabel = NSTextField(labelWithString: "")
+    private lazy var editor = BarLayoutEditor(metric: metric)
     private let leftBtn = NSButton(title: "◀ Move Left", target: nil, action: nil)
     private let rightBtn = NSButton(title: "Move Right ▶", target: nil, action: nil)
     
@@ -47,7 +50,6 @@ public final class SingleMetricWidgetPreviewView: NSView {
         ])
         
         // 1. Stage Card with simulated Dark Menu Bar strip and drop zone
-        dropTargetCard.boxType = .custom
         dropTargetCard.borderColor = NSColor.separatorColor.withAlphaComponent(0.3)
         dropTargetCard.borderWidth = 1.0
         dropTargetCard.cornerRadius = 8
@@ -65,14 +67,13 @@ public final class SingleMetricWidgetPreviewView: NSView {
         dropTargetCard.contentView = cardStack
         
         // Mini simulated macOS menu bar strip
-        let simulatedBar = NSBox()
-        simulatedBar.boxType = .custom
+        let simulatedBar = StageBox()
         simulatedBar.borderColor = NSColor.separatorColor.withAlphaComponent(0.2)
         simulatedBar.borderWidth = 1.0
         simulatedBar.cornerRadius = 6
         simulatedBar.fillColor = NSColor.black.withAlphaComponent(0.25)
         simulatedBar.translatesAutoresizingMaskIntoConstraints = false
-        simulatedBar.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        simulatedBar.heightAnchor.constraint(greaterThanOrEqualToConstant: 42).isActive = true
         
         let barStack = NSStackView()
         barStack.orientation = .horizontal
@@ -88,6 +89,16 @@ public final class SingleMetricWidgetPreviewView: NSView {
         barStack.addArrangedSubview(barLabel)
         
         liveContainer.translatesAutoresizingMaskIntoConstraints = false
+        editor.strip.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        liveContainer.addSubview(editor.strip)
+        NSLayoutConstraint.activate([
+            editor.strip.topAnchor.constraint(equalTo: liveContainer.topAnchor),
+            editor.strip.leadingAnchor.constraint(equalTo: liveContainer.leadingAnchor),
+            editor.strip.trailingAnchor.constraint(equalTo: liveContainer.trailingAnchor),
+            editor.strip.bottomAnchor.constraint(equalTo: liveContainer.bottomAnchor),
+            liveContainer.widthAnchor.constraint(greaterThanOrEqualToConstant: 90)
+        ])
+        editor.onChange = { [weak self] in self?.onLayoutChanged?() }
         barStack.addArrangedSubview(liveContainer)
         
         let spacer = NSView()
@@ -96,6 +107,14 @@ public final class SingleMetricWidgetPreviewView: NSView {
         
         cardStack.addArrangedSubview(simulatedBar)
         simulatedBar.widthAnchor.constraint(equalTo: cardStack.widthAnchor).isActive = true
+        
+        // Tray of hidden parts (drop a part here to remove it from the bar)
+        let trayTitle = NSTextField(labelWithString: "Elements – drag them into the bar, or drag one back here to remove it")
+        trayTitle.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        trayTitle.textColor = NSColor.secondaryLabelColor
+        cardStack.addArrangedSubview(trayTitle)
+        cardStack.addArrangedSubview(editor.tray)
+        editor.tray.widthAnchor.constraint(equalTo: cardStack.widthAnchor).isActive = true
         
         // Drop hint label
         dropHintLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
@@ -132,20 +151,7 @@ public final class SingleMetricWidgetPreviewView: NSView {
     }
     
     public func refreshPreview() {
-        liveContainer.subviews.forEach { $0.removeFromSuperview() }
-        
-        let style = AppPreferences.shared.displayStyle(for: metric)
-        let sample = Self.makeSampleMiniView(metric: metric, style: style)
-        sample.translatesAutoresizingMaskIntoConstraints = false
-        liveContainer.addSubview(sample)
-        
-        NSLayoutConstraint.activate([
-            sample.topAnchor.constraint(equalTo: liveContainer.topAnchor),
-            sample.leadingAnchor.constraint(equalTo: liveContainer.leadingAnchor),
-            sample.trailingAnchor.constraint(equalTo: liveContainer.trailingAnchor),
-            sample.bottomAnchor.constraint(equalTo: liveContainer.bottomAnchor),
-            sample.heightAnchor.constraint(equalToConstant: 22)
-        ])
+        editor.reload()
         
         // Placement label & button states
         let order = AppPreferences.shared.metricOrder
@@ -201,7 +207,7 @@ public final class SingleMetricWidgetPreviewView: NSView {
         dropTargetCard.borderColor = NSColor.separatorColor.withAlphaComponent(0.3)
         dropTargetCard.borderWidth = 1.0
         dropTargetCard.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.6)
-        dropHintLabel.stringValue = "Drag and drop any style card below directly onto this preview to customize it"
+        dropHintLabel.stringValue = "Drag elements into the bar to build your widget"
         dropHintLabel.textColor = NSColor.tertiaryLabelColor
     }
     
@@ -333,6 +339,63 @@ public final class SingleMetricWidgetPreviewView: NSView {
             gaugeHost.heightAnchor.constraint(equalToConstant: 16).isActive = true
             stack.addArrangedSubview(gaugeHost)
             
+        case (_, .barOnly) where metric != .weather && metric != .cpu:
+            let sample: Double = [.memory: 68, .disk: 62, .battery: 75, .temperatures: 48][metric] ?? 50
+            let barHost = MiniCanvasView(drawBlock: { ctx, bounds in
+                StatusItemRenderer.drawHorizontalBar(in: ctx, rect: bounds, percentage: sample, fillColor: theme.primaryColor)
+            })
+            barHost.widthAnchor.constraint(equalToConstant: 20).isActive = true
+            barHost.heightAnchor.constraint(equalToConstant: 7).isActive = true
+            stack.addArrangedSubview(barHost)
+            
+        case (_, .circularGauge) where metric != .cpu && metric != .memory && metric != .disk && metric != .weather && metric != .temperatures:
+            let gaugeHost = MiniCanvasView(drawBlock: { ctx, bounds in
+                StatusItemRenderer.drawCircularGauge(in: ctx, rect: bounds, percentage: 75, fillColor: theme.primaryColor)
+            })
+            gaugeHost.widthAnchor.constraint(equalToConstant: 16).isActive = true
+            gaugeHost.heightAnchor.constraint(equalToConstant: 16).isActive = true
+            stack.addArrangedSubview(gaugeHost)
+            
+        case (.weather, .humidity), (.weather, .wind), (.weather, .feelsLike), (.weather, .rainChance):
+            let text: String
+            switch style {
+            case .humidity: text = "62%"
+            case .wind: text = "12 km/h"
+            case .feelsLike: text = "Feels 21°"
+            default: text = "40%"
+            }
+            stack.addArrangedSubview(makeLabel(text, color: .systemTeal))
+            
+        case (.weather, .highLow):
+            let lbl = makeLabel("↑24°\n↓15°", color: .systemOrange)
+            lbl.font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .semibold)
+            lbl.maximumNumberOfLines = 2
+            stack.addArrangedSubview(lbl)
+            
+        case (.cpu, .standard):
+            let sparkHost = MiniCanvasView(drawBlock: { ctx, bounds in
+                SparklineRenderer.render(in: ctx, rect: bounds, values: [12, 30, 22, 45, 28])
+            })
+            sparkHost.widthAnchor.constraint(equalToConstant: 16).isActive = true
+            sparkHost.heightAnchor.constraint(equalToConstant: 11).isActive = true
+            stack.addArrangedSubview(sparkHost)
+            
+        case (.battery, .standard):
+            let iv = NSImageView(image: NSImage(systemSymbolName: "battery.75", accessibilityDescription: nil) ?? NSImage())
+            iv.contentTintColor = NSColor.headerTextColor
+            iv.widthAnchor.constraint(equalToConstant: 18).isActive = true
+            iv.heightAnchor.constraint(equalToConstant: 14).isActive = true
+            stack.addArrangedSubview(iv)
+            
+        case (_, .verticalBar):
+            let sample: Double = [.cpu: 28, .memory: 68, .disk: 62, .battery: 75, .temperatures: 48, .weather: 65, .network: 40, .displays: 100][metric] ?? 50
+            let barHost = MiniCanvasView(drawBlock: { ctx, bounds in
+                StatusItemRenderer.drawVerticalBar(in: ctx, rect: bounds, percentage: sample, fillColor: theme.primaryColor)
+            })
+            barHost.widthAnchor.constraint(equalToConstant: 7).isActive = true
+            barHost.heightAnchor.constraint(equalToConstant: 16).isActive = true
+            stack.addArrangedSubview(barHost)
+            
         default:
             let text = sampleTextFor(metric: metric)
             let label = makeLabel(text, color: theme.primaryColor)
@@ -396,4 +459,35 @@ private final class MiniCanvasView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         drawBlock(ctx, bounds)
     }
+}
+
+
+/// A rounded, bordered container that sizes itself to its content (NSBox doesn't, which clipped the preview).
+@MainActor
+final class StageBox: NSView {
+    var borderColor: NSColor = .clear { didSet { layer?.borderColor = borderColor.cgColor } }
+    var borderWidth: CGFloat = 0 { didSet { layer?.borderWidth = borderWidth } }
+    var cornerRadius: CGFloat = 0 { didSet { layer?.cornerRadius = cornerRadius } }
+    var fillColor: NSColor = .clear { didSet { layer?.backgroundColor = fillColor.cgColor } }
+    var contentView: NSView? {
+        didSet {
+            oldValue?.removeFromSuperview()
+            guard let v = contentView else { return }
+            v.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(v)
+            NSLayoutConstraint.activate([
+                v.topAnchor.constraint(equalTo: topAnchor),
+                v.leadingAnchor.constraint(equalTo: leadingAnchor),
+                v.trailingAnchor.constraint(equalTo: trailingAnchor),
+                v.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+        }
+    }
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }

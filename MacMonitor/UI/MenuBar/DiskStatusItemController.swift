@@ -97,18 +97,19 @@ final class DiskBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .disk)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .barOnly:
-            return NSSize(width: 22, height: 22)
-        case .circularGauge:
-            return NSSize(width: 22, height: 22)
-        case .textOnly:
-            return NSSize(width: 34, height: 22)
-        case .standard, .multicolorCircle:
-            return NSSize(width: 48, height: 22)
+        case .standard, .multicolorCircle: return 48
+        case .barOnly: return 22
+        case .verticalBar: return 10
+        case .circularGauge: return 20
+        case .textOnly: return 34
+        default: return 20
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .disk, widthFor: width(for:)), height: 22)
     }
     
     public func updateDisk(stats: DiskStats) {
@@ -122,8 +123,12 @@ final class DiskBarItemView: NSView {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let rect = BarChrome.begin(metric: .disk, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .disk)
+        BarChrome.draw(metric: .disk, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect, context: context)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
         let theme = AppPreferences.shared.colorTheme
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
@@ -142,6 +147,10 @@ final class DiskBarItemView: NSView {
                 percentage: usedPercentage,
                 fillColor: .systemPurple
             )
+            
+        case .verticalBar:
+            let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: usedPercentage, fillColor: .systemPurple)
             
         case .circularGauge:
             let gaugeSize: CGFloat = 15.0
@@ -208,6 +217,7 @@ final class DiskBarItemView: NSView {
                 percentage: usedPercentage,
                 fillColor: barColor
             )
+        default: break
         }
     }
 }

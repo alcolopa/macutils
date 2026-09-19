@@ -98,16 +98,19 @@ final class BatteryBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .battery)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .barOnly:
-            return NSSize(width: 22, height: 22)
-        case .textOnly:
-            return NSSize(width: 34, height: 22)
-        case .standard, .circularGauge, .multicolorCircle:
-            return NSSize(width: 48, height: 22)
+        case .standard: return 22
+        case .textOnly: return 34
+        case .barOnly: return 22
+        case .verticalBar: return 10
+        case .circularGauge, .multicolorCircle: return 20
+        default: return 20
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .battery, widthFor: width(for:)), height: 22)
     }
     
     public func updateBattery(stats: BatteryStats) {
@@ -122,29 +125,48 @@ final class BatteryBarItemView: NSView {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let rect = BarChrome.begin(metric: .battery, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .battery)
+        BarChrome.draw(metric: .battery, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect, context: context)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
+        let levelColor: NSColor = isCharging ? .systemGreen : (capacity <= 20 ? .systemRed : textColor)
         
-        if style == .textOnly {
-            let text = "\(capacity)%"
+        switch style {
+        case .verticalBar:
+            let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: Double(capacity), fillColor: levelColor)
+            return
+        case .barOnly:
+            let barRect = CGRect(x: (rect.width - 18.0) / 2.0, y: (rect.height - 7.0) / 2.0, width: 18.0, height: 7.0)
+            StatusItemRenderer.drawHorizontalBar(in: context, rect: barRect, percentage: Double(capacity), fillColor: levelColor)
+            return
+        case .circularGauge, .multicolorCircle:
+            let size: CGFloat = 15.0
+            let gaugeRect = CGRect(x: (rect.width - size) / 2.0, y: (rect.height - size) / 2.0, width: size, height: size)
+            StatusItemRenderer.drawCircularGauge(in: context, rect: gaugeRect, percentage: Double(capacity), fillColor: levelColor)
+            return
+        case .textOnly:
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold),
                 .foregroundColor: textColor
             ]
-            let attrStr = NSAttributedString(string: text, attributes: attrs)
+            let attrStr = NSAttributedString(string: "\(capacity)%", attributes: attrs)
             let strSize = attrStr.size()
-            let textX = (rect.width - strSize.width) / 2.0
-            let textY = (rect.height - strSize.height) / 2.0
-            attrStr.draw(at: CGPoint(x: textX, y: textY))
+            attrStr.draw(at: CGPoint(x: (rect.width - strSize.width) / 2.0, y: (rect.height - strSize.height) / 2.0))
             return
+        case .standard:
+            break
+        default: break
         }
         
         // Draw Battery Icon
         let iconWidth: CGFloat = 17.0
         let iconHeight: CGFloat = 10.0
-        let iconX: CGFloat = (style == .barOnly) ? (rect.width - iconWidth) / 2.0 : (rect.width - iconWidth - 2.0)
+        let iconX: CGFloat = (rect.width - iconWidth) / 2.0
         let iconY = (rect.height - iconHeight) / 2.0
         
         // Outer body
@@ -181,19 +203,5 @@ final class BatteryBarItemView: NSView {
         let fillPath = CGPath(roundedRect: fillRect, cornerWidth: 0.8, cornerHeight: 0.8, transform: nil)
         context.addPath(fillPath)
         context.fillPath()
-        
-        // If standard, also draw percentage text on left
-        if style == .standard || style == .circularGauge || style == .multicolorCircle {
-            let text = "\(capacity)%"
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
-                .foregroundColor: textColor
-            ]
-            let attrStr = NSAttributedString(string: text, attributes: attrs)
-            let strSize = attrStr.size()
-            let textX: CGFloat = 2.0
-            let textY = (rect.height - strSize.height) / 2.0
-            attrStr.draw(at: CGPoint(x: textX, y: textY))
-        }
     }
 }

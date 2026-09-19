@@ -106,17 +106,20 @@ final class WeatherServiceTests: XCTestCase {
         
         // Available styles for Weather
         let styles = AppPreferences.availableStyles(for: .weather)
-        XCTAssertTrue(styles.contains(.standard))
+        XCTAssertFalse(styles.contains(.standard))   // no combined presets; build them from elements
         XCTAssertTrue(styles.contains(.textOnly))
         XCTAssertTrue(styles.contains(.barOnly))
-        XCTAssertTrue(styles.contains(.circularGauge))
+        XCTAssertTrue(styles.contains(.humidity))
+        XCTAssertTrue(styles.contains(.wind))
+        XCTAssertFalse(styles.contains(.circularGauge))   // gauges/bars mean nothing for weather
+        XCTAssertFalse(styles.contains(.verticalBar))
         
         // Display style assignment
-        prefs.setDisplayStyle(.circularGauge, for: .weather)
-        XCTAssertEqual(prefs.displayStyle(for: .weather), .circularGauge)
+        prefs.setDisplayStyle(.humidity, for: .weather)
+        XCTAssertEqual(prefs.displayStyle(for: .weather), .humidity)
         
-        prefs.setDisplayStyle(.standard, for: .weather)
-        XCTAssertEqual(prefs.displayStyle(for: .weather), .standard)
+        prefs.setDisplayStyle(.textOnly, for: .weather)
+        XCTAssertEqual(prefs.displayStyle(for: .weather), .textOnly)
         
         // Cleanup key to avoid dirtying local storage
         prefs.weatherApiKey = ""

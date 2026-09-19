@@ -96,14 +96,15 @@ final class DisplayBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .displays)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .textOnly:
-            return NSSize(width: 20, height: 22)
-        default:
-            return NSSize(width: 20, height: 22)
+        case .verticalBar: return CGFloat(min(displayCount, 4)) * 7.0 + 3.0
+        default: return 20
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .displays, widthFor: width(for:)), height: 22)
     }
     
     public func updateDisplays(stats: DisplayStats) {
@@ -114,22 +115,33 @@ final class DisplayBarItemView: NSView {
     
     public override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        let rect = BarChrome.begin(metric: .displays, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .displays)
+        BarChrome.draw(metric: .displays, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect) {
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
         
-        let text = "\(displayCount)"
+        if style == .verticalBar, let context = NSGraphicsContext.current?.cgContext {
+            // One full bar per active display
+            let barW: CGFloat = 5.0, barH: CGFloat = 16.0, gap: CGFloat = 2.0
+            let n = CGFloat(min(displayCount, 4))
+            let totalW = n * barW + (n - 1) * gap
+            for i in 0..<Int(n) {
+                let r = CGRect(x: (rect.width - totalW) / 2.0 + CGFloat(i) * (barW + gap), y: (rect.height - barH) / 2.0, width: barW, height: barH)
+                StatusItemRenderer.drawVerticalBar(in: context, rect: r, percentage: 100, fillColor: textColor)
+            }
+            return
+        }
+        
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold),
             .foregroundColor: textColor
         ]
-        let attrStr = NSAttributedString(string: text, attributes: attrs)
+        let attrStr = NSAttributedString(string: "\(displayCount)", attributes: attrs)
         let strSize = attrStr.size()
-        
-        _ = style
-        let textX = (rect.width - strSize.width) / 2.0
-        let textY = (rect.height - strSize.height) / 2.0
-        attrStr.draw(at: CGPoint(x: textX, y: textY))
+        attrStr.draw(at: CGPoint(x: (rect.width - strSize.width) / 2.0, y: (rect.height - strSize.height) / 2.0))
     }
 }

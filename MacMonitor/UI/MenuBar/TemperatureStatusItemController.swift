@@ -96,16 +96,19 @@ final class TemperatureBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .temperatures)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .circularGauge:
-            return NSSize(width: 22, height: 22)
-        case .textOnly:
-            return NSSize(width: 34, height: 22)
-        default:
-            return NSSize(width: 34, height: 22)
+        case .standard, .multicolorCircle: return 34
+        case .textOnly: return 34
+        case .barOnly: return 22
+        case .verticalBar: return 10
+        case .circularGauge: return 20
+        default: return 34
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .temperatures, widthFor: width(for:)), height: 22)
     }
     
     public func updateTemperature(_ tempCelsius: Double) {
@@ -118,8 +121,12 @@ final class TemperatureBarItemView: NSView {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let rect = BarChrome.begin(metric: .temperatures, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .temperatures)
+        BarChrome.draw(metric: .temperatures, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect, context: context)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
         
@@ -154,6 +161,16 @@ final class TemperatureBarItemView: NSView {
                 percentage: pct,
                 fillColor: tempColor
             )
+            
+        case .barOnly:
+            let pct = min(max((currentTemp - 30.0) / 70.0 * 100.0, 0.0), 100.0)
+            let barRect = CGRect(x: (rect.width - 18.0) / 2.0, y: (rect.height - 7.0) / 2.0, width: 18.0, height: 7.0)
+            StatusItemRenderer.drawHorizontalBar(in: context, rect: barRect, percentage: pct, fillColor: tempColor)
+            
+        case .verticalBar:
+            let pct = min(max((currentTemp - 30.0) / 70.0 * 100.0, 0.0), 100.0)
+            let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: pct, fillColor: tempColor)
             
         case .textOnly:
             let attrs: [NSAttributedString.Key: Any] = [

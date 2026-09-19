@@ -99,18 +99,19 @@ final class MemoryBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .memory)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .multicolorCircle, .circularGauge:
-            return NSSize(width: 22, height: 22)
-        case .barOnly:
-            return NSSize(width: 22, height: 22)
-        case .textOnly:
-            return NSSize(width: 34, height: 22)
-        case .standard:
-            return NSSize(width: 48, height: 22)
+        case .standard: return 48
+        case .multicolorCircle, .circularGauge: return 20
+        case .barOnly: return 22
+        case .verticalBar: return 10
+        case .textOnly: return 34
+        default: return 20
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .memory, widthFor: width(for:)), height: 22)
     }
     
     public func updateMemory(stats: MemoryStats) {
@@ -146,8 +147,12 @@ final class MemoryBarItemView: NSView {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let rect = BarChrome.begin(metric: .memory, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .memory)
+        BarChrome.draw(metric: .memory, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect, context: context)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
         let theme = AppPreferences.shared.colorTheme
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
@@ -209,6 +214,11 @@ final class MemoryBarItemView: NSView {
                 percentage: usedPercentage,
                 fillColor: color
             )
+            
+        case .verticalBar:
+            let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
+            let color: NSColor = (AppPreferences.shared.memoryDisplayMode == .pressure) ? pressureColor : theme.secondaryColor
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: usedPercentage, fillColor: color)
             
         case .barOnly:
             let barArea = CGRect(
@@ -289,6 +299,7 @@ final class MemoryBarItemView: NSView {
             let fillPath = CGPath(roundedRect: fillRect, cornerWidth: 2.0, cornerHeight: 2.0, transform: nil)
             context.addPath(fillPath)
             context.fillPath()
+        default: break
         }
     }
 }

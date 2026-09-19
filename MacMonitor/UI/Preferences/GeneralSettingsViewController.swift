@@ -16,7 +16,7 @@ public final class GeneralSettingsViewController: NSViewController, @preconcurre
     private let launchAtLoginCheck = NSButton(checkboxWithTitle: "Launch MacMonitor at login", target: nil, action: nil)
     
     private let themePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let intervalSlider = NSSlider(value: 1.5, minValue: 0.5, maxValue: 5.0, target: nil, action: nil)
+    private let intervalSlider = NSSlider(value: 1.5, minValue: 0.25, maxValue: 5.0, target: nil, action: nil)
     private let intervalLabel = NSTextField(labelWithString: "1.5s")
     
     public override func loadView() {

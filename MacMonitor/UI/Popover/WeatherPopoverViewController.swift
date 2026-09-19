@@ -1,5 +1,16 @@
 import AppKit
 
+/// Scrolls horizontally only; predominantly vertical scrolls pass through to the enclosing scroll view.
+private final class HorizontalOnlyScrollView: NSScrollView {
+    override func scrollWheel(with event: NSEvent) {
+        if abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX) {
+            nextResponder?.scrollWheel(with: event)
+        } else {
+            super.scrollWheel(with: event)
+        }
+    }
+}
+
 @MainActor
 public final class WeatherPopoverViewController: NSViewController {
     public var onRefresh: (() -> Void)?
@@ -206,8 +217,9 @@ public final class WeatherPopoverViewController: NSViewController {
     }
     
     private func setupForecastCard() {
-        let scroll = NSScrollView()
+        let scroll = HorizontalOnlyScrollView()
         scroll.drawsBackground = false
+        scroll.verticalScrollElasticity = .none
         scroll.hasHorizontalScroller = false
         scroll.hasVerticalScroller = false
         scroll.autohidesScrollers = true
@@ -292,7 +304,7 @@ public final class WeatherPopoverViewController: NSViewController {
             forecastStack.addArrangedSubview(label)
         } else {
             let hourFmt = DateFormatter()
-            hourFmt.dateFormat = "EEE"
+            hourFmt.dateFormat = AppPreferences.shared.weatherForecastMode == .threeHourly ? "ha" : "EEE"
             
             for item in stats.forecast {
                 let cell = makeForecastCell(item: item, hourFmt: hourFmt, tempStr: fmtTemp(item.tempMax), lowStr: fmtTemp(item.tempMin))

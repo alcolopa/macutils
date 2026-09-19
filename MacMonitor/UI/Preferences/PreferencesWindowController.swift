@@ -28,6 +28,9 @@ public final class PreferencesWindowController: NSWindowController, NSWindowDele
         let tabVC = PreferencesTabViewController()
         tabVC.transitionOptions = [] // Instant tab switch without layout resizing animations
         window.contentViewController = tabVC
+        // Assigning a contentViewController resizes the window to the first tab's view size; restore it.
+        window.setContentSize(NSSize(width: 680, height: 800))
+        window.center()
     }
     
     required init?(coder: NSCoder) {

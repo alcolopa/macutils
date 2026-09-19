@@ -98,18 +98,19 @@ final class CPUBarItemView: NSView {
         wantsLayer = true
     }
     
-    public override var intrinsicContentSize: NSSize {
-        let style = AppPreferences.shared.displayStyle(for: .cpu)
+    private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .barOnly:
-            return NSSize(width: 22, height: 22)
-        case .circularGauge:
-            return NSSize(width: 22, height: 22)
-        case .textOnly:
-            return NSSize(width: 34, height: 22)
-        case .standard, .multicolorCircle:
-            return NSSize(width: 48, height: 22)
+        case .standard, .multicolorCircle: return 22
+        case .barOnly: return 22
+        case .verticalBar: return 10
+        case .circularGauge: return 20
+        case .textOnly: return 34
+        default: return 20
         }
+    }
+    
+    public override var intrinsicContentSize: NSSize {
+        NSSize(width: BarChrome.elementsWidth(for: .cpu, widthFor: width(for:)), height: 22)
     }
     
     public func updateCPU(_ usage: Double) {
@@ -128,8 +129,12 @@ final class CPUBarItemView: NSView {
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let rect = BarChrome.begin(metric: .cpu, in: self)
-        let style = AppPreferences.shared.displayStyle(for: .cpu)
+        BarChrome.draw(metric: .cpu, in: self, widthFor: width(for:)) { style, rect in
+            drawElement(style, in: rect, context: context)
+        }
+    }
+    
+    private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect, context: CGContext) {
         let theme = AppPreferences.shared.colorTheme
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
@@ -150,6 +155,10 @@ final class CPUBarItemView: NSView {
                 barCount: 4,
                 primaryColor: theme.primaryColor
             )
+            
+        case .verticalBar:
+            let barRect = CGRect(x: (rect.width - 7.0) / 2.0, y: (rect.height - 16.0) / 2.0, width: 7.0, height: 16.0)
+            StatusItemRenderer.drawVerticalBar(in: context, rect: barRect, percentage: currentUsage, fillColor: theme.primaryColor)
             
         case .circularGauge:
             let gaugeSize: CGFloat = 15.0
@@ -179,27 +188,17 @@ final class CPUBarItemView: NSView {
             attrStr.draw(at: CGPoint(x: textX, y: textY))
             
         case .standard, .multicolorCircle:
-            let text = "\(max(lastPercentage, 0))%"
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .semibold),
-                .foregroundColor: textColor
-            ]
-            let attrStr = NSAttributedString(string: text, attributes: attrs)
-            let strSize = attrStr.size()
-            
-            let textX: CGFloat = 2.0
-            let textY = (rect.height - strSize.height) / 2.0
-            attrStr.draw(at: CGPoint(x: textX, y: textY))
-            
+            // Sparkline graph only; the percentage is its own (Text) element
             let sparkWidth: CGFloat = 16.0
             let sparkHeight: CGFloat = 11.0
             let sparkRect = CGRect(
-                x: rect.width - sparkWidth - 2.0,
+                x: (rect.width - sparkWidth) / 2.0,
                 y: (rect.height - sparkHeight) / 2.0,
                 width: sparkWidth,
                 height: sparkHeight
             )
             SparklineRenderer.render(in: context, rect: sparkRect, values: recentValues)
+        default: break
         }
     }
 }

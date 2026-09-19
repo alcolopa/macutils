@@ -17,7 +17,7 @@ public final class AdaptivePoller: @unchecked Sendable {
     private let displayReader = MachDisplayReader()
     private let processReader = DarwinProcessReader()
     
-    private let queue = DispatchQueue(label: "com.macmonitor.poller", qos: .utility)
+    private let queue = DispatchQueue(label: "com.macmonitor.poller", qos: .userInitiated)
     private var timer: DispatchSourceTimer?
     
     private var currentState: State = .passive
@@ -130,11 +130,11 @@ public final class AdaptivePoller: @unchecked Sendable {
         switch state {
         case .passive:
             let userSec = AppPreferences.shared.passiveInterval
-            intervalMs = max(500, Int(userSec * 1000.0))
-            leewayMs = 250
+            intervalMs = max(250, Int(userSec * 1000.0))
+            leewayMs = 10
         case .active:
             intervalMs = 500
-            leewayMs = 25
+            leewayMs = 10
         case .suspended:
             return
         }

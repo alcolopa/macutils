@@ -151,9 +151,94 @@ public final class WidgetStyleChipView: NSView, NSDraggingSource {
     }
 }
 
+/// One fixed-height row in the style list. Selection only changes colours, never the row size.
+@MainActor
+private final class WidgetStyleRowView: NSView, NSDraggingSource {
+    let style: MetricDisplayStyle
+    var onSelect: (() -> Void)?
+    private let isSelected: Bool
+    private var mouseDownPoint: NSPoint?
+    
+    init(style: MetricDisplayStyle, isSelected: Bool) {
+        self.style = style
+        self.isSelected = isSelected
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.backgroundColor = isSelected
+            ? NSColor.controlAccentColor.withAlphaComponent(0.22).cgColor
+            : NSColor.clear.cgColor
+        translatesAutoresizingMaskIntoConstraints = false
+        heightAnchor.constraint(equalToConstant: 30).isActive = true
+        
+        let label = NSTextField(labelWithString: style.displayName)
+        label.font = NSFont.systemFont(ofSize: 12.5, weight: .medium)
+        label.textColor = isSelected ? .labelColor : .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        
+        let check = NSImageView(image: NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil) ?? NSImage())
+        check.contentTintColor = .controlAccentColor
+        check.isHidden = !isSelected
+        check.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(check)
+        
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: check.leadingAnchor, constant: -6),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            check.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            check.centerYAnchor.constraint(equalTo: centerYAnchor),
+            check.widthAnchor.constraint(equalToConstant: 12)
+        ])
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self, userInfo: nil))
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
+    override func mouseEntered(with event: NSEvent) {
+        if !isSelected { layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.06).cgColor }
+    }
+    
+    override func mouseExited(with event: NSEvent) {
+        if !isSelected { layer?.backgroundColor = NSColor.clear.cgColor }
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        mouseDownPoint = convert(event.locationInWindow, from: nil)
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = mouseDownPoint else { return }
+        let now = convert(event.locationInWindow, from: nil)
+        guard hypot(now.x - start.x, now.y - start.y) > 4 else { return }
+        mouseDownPoint = nil
+        
+        let item = NSPasteboardItem()
+        item.setString(style.rawValue, forType: WidgetStyleChipView.stylePasteboardType)
+        let dragItem = NSDraggingItem(pasteboardWriter: item)
+        dragItem.setDraggingFrame(bounds, contents: snapshotImage(of: self))
+        beginDraggingSession(with: [dragItem], event: event, source: self)
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        // A click (no drag) also applies the style
+        if mouseDownPoint != nil, bounds.contains(convert(event.locationInWindow, from: nil)) { onSelect?() }
+        mouseDownPoint = nil
+    }
+    
+    nonisolated func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        .copy
+    }
+}
+
+/// Fixed-width vertical list of the display styles available for a metric.
 @MainActor
 public final class WidgetStylePickerView: NSView {
     public weak var delegate: WidgetStylePickerViewDelegate?
+    public static let listWidth: CGFloat = 210
+    
     private let metric: MetricType
     private let stack = NSStackView()
     
@@ -170,14 +255,14 @@ public final class WidgetStylePickerView: NSView {
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 10
-        stack.distribution = .fillEqually
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         
         NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: Self.listWidth),
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -190,17 +275,15 @@ public final class WidgetStylePickerView: NSView {
     public func refreshStyles() {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         
-        let styles = AppPreferences.availableStyles(for: metric)
-        let currentStyle = AppPreferences.shared.displayStyle(for: metric)
-        
-        for style in styles {
-            let sampleView = SingleMetricWidgetPreviewView.makeSampleMiniView(metric: metric, style: style)
-            let chip = WidgetStyleChipView(style: style, isSelected: style == currentStyle, previewView: sampleView)
-            chip.onSelect = { [weak self, weak chip] in
-                guard let self = self, let chip = chip else { return }
-                self.delegate?.widgetStylePickerView(self, didSelectStyle: chip.style)
+        let active = AppPreferences.shared.barOptions(for: metric).styles
+        for style in AppPreferences.availableStyles(for: metric) {
+            let row = WidgetStyleRowView(style: style, isSelected: active.contains(style))
+            row.onSelect = { [weak self, weak row] in
+                guard let self = self, let row = row else { return }
+                self.delegate?.widgetStylePickerView(self, didSelectStyle: row.style)
             }
-            stack.addArrangedSubview(chip)
+            stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
     }
 }

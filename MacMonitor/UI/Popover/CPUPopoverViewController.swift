@@ -100,7 +100,8 @@ public final class CPUPopoverViewController: NSViewController {
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            container.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
+            container.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
+            topProcCard.widthAnchor.constraint(equalTo: container.widthAnchor, constant: -28)
         ])
     }
     

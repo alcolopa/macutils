@@ -48,6 +48,13 @@ public enum MetricDisplayStyle: String, Sendable, CaseIterable, Codable {
     case textOnly         = "textOnly"         // Numeric text only
     case circularGauge    = "circularGauge"    // Single-color circular ring / gauge
     case multicolorCircle = "multicolorCircle" // Multi-colored ring / donut (e.g. breakdown for memory)
+    case verticalBar      = "verticalBar"      // Single vertical level bar, no text
+    // Weather-only elements
+    case humidity         = "humidity"         // e.g. "62%"
+    case wind             = "wind"             // e.g. "12 km/h"
+    case feelsLike        = "feelsLike"        // e.g. "Feels 21°"
+    case highLow          = "highLow"          // today's high over low
+    case rainChance       = "rainChance"       // e.g. "40%" chance of precipitation
     
     public var displayName: String {
         switch self {
@@ -56,8 +63,19 @@ public enum MetricDisplayStyle: String, Sendable, CaseIterable, Codable {
         case .textOnly:         return "Text Only"
         case .circularGauge:    return "Circular Gauge"
         case .multicolorCircle: return "Multicoloured Circle"
+        case .verticalBar:      return "Vertical Bar"
+        case .humidity:         return "Humidity"
+        case .wind:             return "Wind"
+        case .feelsLike:        return "Feels Like"
+        case .highLow:          return "High / Low"
+        case .rainChance:       return "Chance of Rain"
         }
     }
+}
+
+public enum WeatherForecastMode: String, Sendable, CaseIterable {
+    case daily       = "Daily"
+    case threeHourly = "Every 3 hours"
 }
 
 public enum MemoryDisplayMode: String, Sendable, CaseIterable {
@@ -118,23 +136,56 @@ public enum BarIconTint: String, Sendable, CaseIterable {
     case theme     = "Theme colour"
 }
 
-/// Per-widget menu bar appearance options (icon, label, padding).
+/// A building block of a menu bar widget: the icon, the short label, or one graphic/text element.
+/// A widget is an ordered list of these, so several elements (e.g. text + bar + circle) can be combined.
+public enum BarPart: Hashable, Sendable {
+    case icon
+    case label
+    case element(MetricDisplayStyle)
+    
+    public var token: String {
+        switch self {
+        case .icon: return "icon"
+        case .label: return "label"
+        case .element(let style): return "el:" + style.rawValue
+        }
+    }
+    
+    public init?(token: String) {
+        switch token {
+        case "icon": self = .icon
+        case "label": self = .label
+        default:
+            guard token.hasPrefix("el:"), let style = MetricDisplayStyle(rawValue: String(token.dropFirst(3))) else { return nil }
+            self = .element(style)
+        }
+    }
+    
+    public var style: MetricDisplayStyle? {
+        if case .element(let s) = self { return s }
+        return nil
+    }
+}
+
+/// Per-widget menu bar appearance: an ordered list of visible parts plus icon/padding tweaks.
 public struct BarOptions: Sendable, Equatable {
-    public var showIcon: Bool
-    public var iconPosition: BarIconPosition
     public var iconSize: BarIconSize
     public var iconTint: BarIconTint
-    public var showLabel: Bool
     public var padding: Double
+    /// Visible parts, left to right. Parts not listed are hidden.
+    public var order: [BarPart]
+    
+    public var showIcon: Bool { order.contains(.icon) }
+    public var showLabel: Bool { order.contains(.label) }
+    public var styles: [MetricDisplayStyle] { order.compactMap(\.style) }
     
     public static func defaults(for metric: MetricType) -> BarOptions {
         BarOptions(
-            showIcon: metric != .weather,   // weather already draws its own condition icon
-            iconPosition: .leading,
             iconSize: .medium,
             iconTint: .automatic,
-            showLabel: false,
-            padding: 0
+            padding: 0,
+            // weather already draws its own condition icon; battery draws its own battery
+            order: (metric == .weather ? [] : [.icon]) + [.element(AppPreferences.defaultElement(for: metric))]
         )
     }
 }
@@ -154,6 +205,7 @@ public final class AppPreferences: @unchecked Sendable {
     private let keyWeatherApiKey = "weatherApiKey"
     private let keyWeatherCity = "weatherCity"
     private let keyWeatherUpdateInterval = "weatherUpdateInterval"
+    private let keyWeatherForecastMode = "weatherForecastMode"
     private let keyMemoryDisplayMode = "memoryDisplayMode"
     private let keyColorTheme = "colorTheme"
     private let keyPassiveInterval = "passiveInterval"
@@ -238,9 +290,14 @@ public final class AppPreferences: @unchecked Sendable {
     public var weatherUpdateInterval: TimeInterval {
         get {
             let val = defaults.double(forKey: keyWeatherUpdateInterval)
-            return val >= 300 ? val : 1800 // Minimum 5 mins, default 30 mins
+            return val >= 300 ? val : 900 // Minimum 5 mins, default 15 mins
         }
         set { defaults.set(newValue, forKey: keyWeatherUpdateInterval); notifyChange() }
+    }
+    
+    public var weatherForecastMode: WeatherForecastMode {
+        get { defaults.string(forKey: keyWeatherForecastMode).flatMap(WeatherForecastMode.init(rawValue:)) ?? .daily }
+        set { defaults.set(newValue.rawValue, forKey: keyWeatherForecastMode); notifyChange() }
     }
     
     public func isMetricVisible(_ metric: MetricType) -> Bool {
@@ -340,39 +397,52 @@ public final class AppPreferences: @unchecked Sendable {
         }
     }
     
+    /// The first (primary) element of the widget; kept for callers that only care about one style.
     public func displayStyle(for metric: MetricType) -> MetricDisplayStyle {
-        let key = "displayStyle_\(metric.rawValue)"
-        if let raw = defaults.string(forKey: key), let style = MetricDisplayStyle(rawValue: raw) {
-            return style
-        }
-        return .standard
+        barOptions(for: metric).styles.first ?? .standard
     }
     
+    /// Replaces all of the widget's elements with a single style (icon/label are kept where they are).
     public func setDisplayStyle(_ style: MetricDisplayStyle, for metric: MetricType) {
-        let key = "displayStyle_\(metric.rawValue)"
-        defaults.set(style.rawValue, forKey: key)
-        notifyChange()
+        var o = barOptions(for: metric)
+        var replaced = false
+        o.order = o.order.compactMap { part in
+            guard part.style != nil else { return part }
+            if replaced { return nil }
+            replaced = true
+            return .element(style)
+        }
+        if !replaced { o.order.append(.element(style)) }
+        setBarOptions(o, for: metric)
     }
     
+    /// Elements a widget can be built from. There are no combined presets: e.g. percentage + icon is
+    /// built by dragging the Text and Icon parts into the bar.
+    /// `.standard` only remains where it is a single element (CPU graph, battery icon, network up/down, display count).
     public static func availableStyles(for metric: MetricType) -> [MetricDisplayStyle] {
         switch metric {
         case .cpu:
-            return [.standard, .barOnly, .circularGauge, .textOnly]
-        case .memory:
-            return [.standard, .multicolorCircle, .barOnly, .circularGauge, .textOnly]
-        case .disk:
-            return [.standard, .barOnly, .circularGauge, .textOnly]
+            return [.textOnly, .standard, .barOnly, .verticalBar, .circularGauge]
         case .battery:
-            return [.standard, .barOnly, .textOnly]
-        case .network:
-            return [.standard, .textOnly]
-        case .temperatures:
-            return [.standard, .circularGauge, .textOnly]
-        case .displays:
-            return [.standard, .textOnly]
+            return [.textOnly, .standard, .barOnly, .verticalBar, .circularGauge]
         case .weather:
-            return [.standard, .textOnly, .barOnly, .circularGauge]
+            // Bars and gauges don't mean anything for weather, so only real weather readings are offered.
+            // .textOnly = temperature, .barOnly = condition icon.
+            return [.textOnly, .barOnly, .feelsLike, .highLow, .humidity, .wind, .rainChance]
+        case .disk, .temperatures:
+            return [.textOnly, .barOnly, .verticalBar, .circularGauge]
+        case .memory:
+            return [.textOnly, .barOnly, .verticalBar, .circularGauge, .multicolorCircle]
+        case .network:
+            return [.textOnly, .standard, .verticalBar]
+        case .displays:
+            return [.standard, .verticalBar]
         }
+    }
+    
+    /// The element used when nothing else is chosen (and to replace removed presets).
+    public static func defaultElement(for metric: MetricType) -> MetricDisplayStyle {
+        availableStyles(for: metric).contains(.textOnly) ? .textOnly : .standard
     }
     
     // MARK: - Per-widget bar options
@@ -380,27 +450,52 @@ public final class AppPreferences: @unchecked Sendable {
     public func barOptions(for metric: MetricType) -> BarOptions {
         let d = BarOptions.defaults(for: metric)
         let k = "bar_\(metric.rawValue)_"
-        func bool(_ name: String, _ fallback: Bool) -> Bool {
-            defaults.object(forKey: k + name) == nil ? fallback : defaults.bool(forKey: k + name)
-        }
         return BarOptions(
-            showIcon: bool("showIcon", d.showIcon),
-            iconPosition: defaults.string(forKey: k + "iconPosition").flatMap(BarIconPosition.init(rawValue:)) ?? d.iconPosition,
             iconSize: defaults.string(forKey: k + "iconSize").flatMap(BarIconSize.init(rawValue:)) ?? d.iconSize,
             iconTint: defaults.string(forKey: k + "iconTint").flatMap(BarIconTint.init(rawValue:)) ?? d.iconTint,
-            showLabel: bool("showLabel", d.showLabel),
-            padding: defaults.object(forKey: k + "widgetPadding") == nil ? d.padding : defaults.double(forKey: k + "widgetPadding")
+            padding: defaults.object(forKey: k + "widgetPadding") == nil ? d.padding : defaults.double(forKey: k + "widgetPadding"),
+            order: loadOrder(for: metric, default: d)
         )
+    }
+    
+    /// Reads the stored part list, or migrates the older single-style + icon/label settings.
+    private func loadOrder(for metric: MetricType, default d: BarOptions) -> [BarPart] {
+        let k = "bar_\(metric.rawValue)_"
+        var order: [BarPart]
+        if let raw = defaults.string(forKey: k + "order") {
+            order = raw.split(separator: ",").compactMap { BarPart(token: String($0)) }
+        } else {
+            let style = defaults.string(forKey: "displayStyle_\(metric.rawValue)").flatMap(MetricDisplayStyle.init(rawValue:)) ?? .standard
+            let showIcon = defaults.object(forKey: k + "showIcon") == nil ? d.showIcon : defaults.bool(forKey: k + "showIcon")
+            let showLabel = defaults.bool(forKey: k + "showLabel")
+            let trailing = defaults.string(forKey: k + "iconPosition") == BarIconPosition.trailing.rawValue
+            var chrome: [BarPart] = []
+            if showIcon { chrome.append(.icon) }
+            if showLabel { chrome.append(.label) }
+            order = trailing ? [.element(style)] + chrome : chrome + [.element(style)]
+        }
+        // Repair: known parts only, no duplicates, this metric's styles only, at least one element
+        let allowed = Set(Self.availableStyles(for: metric))
+        let fallback = BarPart.element(Self.defaultElement(for: metric))
+        var seen = Set<BarPart>()
+        order = order.map { part in
+            // Removed presets (e.g. the old Standard text+graphic) become the default element
+            if let s = part.style, !allowed.contains(s) { return fallback }
+            return part
+        }.filter { part in
+            if part == .icon && metric == .battery { return false }
+            return seen.insert(part).inserted
+        }
+        if !order.contains(where: { $0.style != nil }) { order.append(fallback) }
+        return order
     }
     
     public func setBarOptions(_ o: BarOptions, for metric: MetricType) {
         let k = "bar_\(metric.rawValue)_"
-        defaults.set(o.showIcon, forKey: k + "showIcon")
-        defaults.set(o.iconPosition.rawValue, forKey: k + "iconPosition")
         defaults.set(o.iconSize.rawValue, forKey: k + "iconSize")
         defaults.set(o.iconTint.rawValue, forKey: k + "iconTint")
-        defaults.set(o.showLabel, forKey: k + "showLabel")
         defaults.set(o.padding, forKey: k + "widgetPadding")
+        defaults.set(o.order.map(\.token).joined(separator: ","), forKey: k + "order")
         notifyChange()
     }
     

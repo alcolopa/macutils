@@ -27,10 +27,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         rebuildControllersInOrder()
         
         var appliedInterval = prefs.passiveInterval
+        var appliedWeather = "\(prefs.weatherUpdateInterval)|\(prefs.weatherForecastMode.rawValue)"
         prefs.onPreferencesChanged = { [weak self, weak poller] in
-            if prefs.passiveInterval != appliedInterval {
+            let weatherNow = "\(prefs.weatherUpdateInterval)|\(prefs.weatherForecastMode.rawValue)"
+            if prefs.passiveInterval != appliedInterval || weatherNow != appliedWeather {
                 appliedInterval = prefs.passiveInterval
-                poller?.reconfigure()
+                appliedWeather = weatherNow
+                poller?.reconfigure()   // restarts the weather timer, which also refetches right away
             }
             self?.rebuildControllersInOrder()
         }

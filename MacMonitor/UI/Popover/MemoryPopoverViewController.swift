@@ -5,7 +5,7 @@ public final class MemoryPopoverViewController: NSViewController {
     private let pressureCard = MetricCardView(title: "Memory Pressure", badge: "Normal")
     private let ramCard = MetricCardView(title: "Memory Breakdown", badge: "0%")
     private let swapCard = MetricCardView(title: "Swap Space", badge: "0 MB")
-    private let topProcCard = MetricCardView(title: "Top Processes by RAM")
+    private let topProcCard = MetricCardView(title: "Top Processes by RAM", contentInsets: NSEdgeInsets(top: 8, left: 6, bottom: 8, right: 6))
     private let procTableView = ProcessTableView(mode: .memory)
     
     private let pressureBar = SegmentedProgressBar(frame: .zero)
@@ -141,7 +141,8 @@ public final class MemoryPopoverViewController: NSViewController {
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            container.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
+            container.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
+            topProcCard.widthAnchor.constraint(equalTo: container.widthAnchor, constant: -28)
         ])
     }
     
