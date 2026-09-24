@@ -122,9 +122,9 @@ final class BarLayoutEditor {
     private let stripStack = NSStackView()
     private let trayStack = NSStackView()
     
-    /// Every part this widget can show. Battery and weather draw their own icon, so they have no separate icon part.
+    /// Every part this widget can show. Weather draws its own condition icon, so it has no separate icon part.
     private var available: [BarPart] {
-        var parts: [BarPart] = (metric == .battery || metric == .weather) ? [] : [.icon]
+        var parts: [BarPart] = (metric == .weather) ? [] : [.icon]
         parts.append(.label)
         parts += AppPreferences.availableStyles(for: metric).map { .element($0) }
         return parts
@@ -216,9 +216,8 @@ final class BarLayoutEditor {
             case .standard:
                 switch metric {
                 case .cpu: chip.toolTip = "Graph"
-                case .battery: chip.toolTip = "Battery icon"
                 case .network: chip.toolTip = "Speeds (stacked)"
-                default: chip.toolTip = "Display count"
+                default: chip.toolTip = "Element"
                 }
             }
         }

@@ -16,25 +16,42 @@ final class TemperatureAndDisplayTests: XCTestCase {
         }
     }
     
-    func testMachDisplayReaderExecution() {
-        let reader = MachDisplayReader()
-        let stats = reader.readDisplays()
-        
-        XCTAssertGreaterThanOrEqual(stats.activeDisplayCount, 1, "There should be at least 1 active display")
-        guard let first = stats.displays.first else {
-            XCTFail("No displays returned")
-            return
+    func testMachTemperatureReaderPortNeutralityOverReads() {
+        func getPortCount() -> mach_msg_type_number_t {
+            var portNames: mach_port_name_array_t?
+            var namesCount: mach_msg_type_number_t = 0
+            var portTypes: mach_port_type_array_t?
+            var typesCount: mach_msg_type_number_t = 0
+            
+            let kr = mach_port_names(mach_task_self_, &portNames, &namesCount, &portTypes, &typesCount)
+            XCTAssertEqual(kr, KERN_SUCCESS)
+            
+            if let portNames = portNames {
+                vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: portNames)), vm_size_t(namesCount) * vm_size_t(MemoryLayout<mach_port_name_t>.stride))
+            }
+            if let portTypes = portTypes {
+                vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: portTypes)), vm_size_t(typesCount) * vm_size_t(MemoryLayout<mach_port_type_t>.stride))
+            }
+            return namesCount
         }
-        XCTAssertGreaterThan(first.resolution.width, 0.0)
-        XCTAssertGreaterThan(first.resolution.height, 0.0)
-        XCTAssertGreaterThan(first.refreshRate, 0.0)
+        
+        let reader = MachTemperatureReader()
+        _ = reader.readTemperatures()
+        
+        let startCount = getPortCount()
+        for _ in 0..<50 {
+            _ = reader.readTemperatures()
+        }
+        let endCount = getPortCount()
+        
+        XCTAssertEqual(startCount, endCount, "Temperature reader leaked Mach ports! Delta: \(Int(endCount) - Int(startCount))")
     }
     
     func testPreferencesMetricOrderPersistence() {
         let prefs = AppPreferences.shared
         let originalOrder = prefs.metricOrder
         
-        let newOrder: [MetricType] = [.temperatures, .displays, .cpu, .memory, .disk, .network, .battery, .weather]
+        let newOrder: [MetricType] = [.temperatures, .cpu, .memory, .disk, .network, .weather]
         prefs.metricOrder = newOrder
         
         XCTAssertEqual(prefs.metricOrder, newOrder)

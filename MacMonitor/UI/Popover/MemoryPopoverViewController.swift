@@ -34,10 +34,15 @@ public final class MemoryPopoverViewController: NSViewController {
         setupLayout()
     }
     
+    private var lastStats: MemoryStats?
+    
     public override func viewWillAppear() {
         super.viewWillAppear()
         scrollView.contentView.scroll(to: .zero)
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        if let last = lastStats {
+            updateVisibleDetails(stats: last)
+        }
     }
     
     private func setupLayout() {
@@ -151,10 +156,18 @@ public final class MemoryPopoverViewController: NSViewController {
     }
     
     public func update(stats: MemoryStats) {
+        lastStats = stats
         let theme = AppPreferences.shared.colorTheme
         let usedSev = Severity.level(stats.usedPercentage, warning: 75, danger: 90)
         graphView.series1Color = usedSev.color(normal: theme.secondaryColor)
         graphView.push(val1: stats.usedPercentage)
+        
+        guard isViewLoaded && view.window != nil else { return }
+        updateVisibleDetails(stats: stats)
+    }
+    
+    private func updateVisibleDetails(stats: MemoryStats) {
+        let usedSev = Severity.level(stats.usedPercentage, warning: 75, danger: 90)
         
         pressureCard.setBadge(stats.pressureState.rawValue)
         pressureStatusRow.setValue(stats.pressureState.rawValue)

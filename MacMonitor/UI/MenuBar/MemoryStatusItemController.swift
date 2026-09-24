@@ -1,8 +1,9 @@
 import AppKit
 
 @MainActor
-public final class MemoryStatusItemController: NSObject, NSPopoverDelegate {
-    public let statusItem: NSStatusItem
+public final class MemoryStatusItemController: NSObject, NSPopoverDelegate, MetricStatusItemControlling {
+    public weak var statusItem: NSStatusItem?
+    public let metricType: MetricType = .memory
     private let barView = MemoryBarItemView(frame: NSRect(x: 0, y: 0, width: 56, height: 22))
     private let popover = NSPopover()
     private let popoverVC = MemoryPopoverViewController()
@@ -12,36 +13,56 @@ public final class MemoryStatusItemController: NSObject, NSPopoverDelegate {
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
     public override init() {
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        
-        setupButton()
         setupPopover()
+    }
+    
+    public func attach(to item: NSStatusItem) {
+        detach()
+        self.statusItem = item
+        setupButton()
         syncLength()
+    }
+    
+    public func detach() {
+        closePopover()
+        barView.removeFromSuperview()
+        if let button = statusItem?.button {
+            if button.target === self {
+                button.target = nil
+                button.action = nil
+            }
+        }
+        self.statusItem = nil
+    }
+    
+    public func destroy() {
+        detach()
     }
     
     /// Sizes the status item to its content so widgets aren't spaced out for nothing.
     public func syncLength() {
+        guard let statusItem = statusItem else { return }
         statusItem.length = ceil(barView.intrinsicContentSize.width + BarChrome.extraWidth(for: .memory))
         barView.needsDisplay = true
     }
     
     private func setupButton() {
-        if let button = statusItem.button {
-            button.frame = NSRect(x: 0, y: 0, width: 56, height: 22)
-            button.addSubview(barView)
-            button.target = self
-            button.action = #selector(handleButtonClick(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            
-            barView.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                barView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-                barView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-                barView.topAnchor.constraint(equalTo: button.topAnchor),
-                barView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
-            ])
-        }
+        guard let button = statusItem?.button else { return }
+        button.subviews.forEach { $0.removeFromSuperview() }
+        button.frame = NSRect(x: 0, y: 0, width: 56, height: 22)
+        button.addSubview(barView)
+        button.target = self
+        button.action = #selector(handleButtonClick(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        
+        barView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            barView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            barView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            barView.topAnchor.constraint(equalTo: button.topAnchor),
+            barView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+        ])
     }
     
     private func setupPopover() {
@@ -53,7 +74,7 @@ public final class MemoryStatusItemController: NSObject, NSPopoverDelegate {
     }
     
     @objc public func handleButtonClick(_ sender: AnyObject?) {
-        guard let event = NSApp.currentEvent else { return }
+        guard let event = NSApp.currentEvent, let statusItem = statusItem else { return }
         if event.type == .rightMouseUp || (event.modifierFlags.contains(.control)) {
             let menu = PreferencesMenu.makeMenu()
             statusItem.menu = menu
@@ -85,7 +106,7 @@ public final class MemoryStatusItemController: NSObject, NSPopoverDelegate {
     }
 }
 
-final class MemoryBarItemView: NSView {
+final class MemoryBarItemView: MenuBarItemContentView {
     private var stats: MemoryStats?
     private var usedPercentage: Double = 0.0
     private var displayText: String = "0%"

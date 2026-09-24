@@ -26,10 +26,15 @@ public final class TemperaturePopoverViewController: NSViewController {
         setupLayout()
     }
     
+    private var lastStats: TemperatureStats?
+    
     public override func viewWillAppear() {
         super.viewWillAppear()
         scrollView.contentView.scroll(to: .zero)
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        if let last = lastStats {
+            updateVisibleDetails(stats: last)
+        }
     }
     
     private func setupLayout() {
@@ -88,6 +93,16 @@ public final class TemperaturePopoverViewController: NSViewController {
     }
     
     public func update(stats: TemperatureStats) {
+        lastStats = stats
+        let sev = Severity.level(stats.cpuTemperature, warning: 80, danger: 95)
+        graphView.series1Color = sev.color(normal: AppPreferences.shared.colorTheme.primaryColor)
+        graphView.push(val1: stats.cpuTemperature)
+        
+        guard isViewLoaded && view.window != nil else { return }
+        updateVisibleDetails(stats: stats)
+    }
+    
+    private func updateVisibleDetails(stats: TemperatureStats) {
         let isFahrenheit = AppPreferences.shared.temperatureUnit == .fahrenheit
         func formatTemp(_ celsius: Double) -> String {
             if isFahrenheit {
@@ -98,8 +113,6 @@ public final class TemperaturePopoverViewController: NSViewController {
         }
         
         let sev = Severity.level(stats.cpuTemperature, warning: 80, danger: 95)
-        graphView.series1Color = sev.color(normal: AppPreferences.shared.colorTheme.primaryColor)
-        graphView.push(val1: stats.cpuTemperature)
         overviewCard.setBadge(formatTemp(stats.cpuTemperature), tint: sev.textTint)
         
         cpuRow.setValue(formatTemp(stats.cpuTemperature), tint: sev.textTint)

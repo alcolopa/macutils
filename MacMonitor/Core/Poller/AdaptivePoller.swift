@@ -1,30 +1,31 @@
 import Foundation
 import AppKit
 import Network
+import CoreGraphics
 
 public final class AdaptivePoller: @unchecked Sendable {
     public enum State: Sendable {
         case passive     // Popovers closed; screen active
-        case active      // At least one Popover displayed: 500ms interval, 25ms leeway
-        case suspended   // Screen sleep or locked: Paused
+        case active      // At least one Popover displayed: 500ms interval
+        case suspended   // Screen sleep, system sleep, or locked: Paused
     }
     
     private let cpuReader: MachCPUReader
     private let memoryReader: MachMemoryReader
     private let networkReader: MachNetworkReader
     private let diskReader: MachDiskReader
-    private let batteryReader: MachBatteryReader
     private let tempReader = MachTemperatureReader()
-    private let displayReader = MachDisplayReader()
     private let processReader = DarwinProcessReader()
     
-    private let queue = DispatchQueue(label: "com.macmonitor.poller", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.macmonitor.poller", qos: .utility)
     private var timer: DispatchSourceTimer?
     
     private var currentState: State = .passive
     private var previousActiveState: State = .passive
-    private var openPopoverCount: Int = 0
+    private var openPopovers: Set<MetricType> = []
+    private var legacyOpenPopoverCount: Int = 0
     private var tickCount: Int = 0
+    private var isIdleThrottled: Bool = false
     private let lock = NSLock()
     
     private let weatherService = OpenWeatherMapService.shared
@@ -33,22 +34,20 @@ public final class AdaptivePoller: @unchecked Sendable {
     private var weatherRetryTask: Task<Void, Never>?
     private var lastWeatherStats: WeatherStats = .unconfigured
     
-    public var onMetricsUpdated: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, BatteryStats, State) -> Void)?
-    public var onExtendedMetricsUpdated: (@Sendable @MainActor (TemperatureStats, DisplayStats) -> Void)?
+    public var onMetricsUpdated: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, State) -> Void)?
+    public var onExtendedMetricsUpdated: (@Sendable @MainActor (TemperatureStats) -> Void)?
     public var onWeatherUpdated: (@Sendable @MainActor (WeatherStats) -> Void)?
     
     public init(
         cpuReader: MachCPUReader = MachCPUReader(),
         memoryReader: MachMemoryReader = MachMemoryReader(),
         networkReader: MachNetworkReader = MachNetworkReader(),
-        diskReader: MachDiskReader = MachDiskReader(),
-        batteryReader: MachBatteryReader = MachBatteryReader()
+        diskReader: MachDiskReader = MachDiskReader()
     ) {
         self.cpuReader = cpuReader
         self.memoryReader = memoryReader
         self.networkReader = networkReader
         self.diskReader = diskReader
-        self.batteryReader = batteryReader
         setupWorkspaceObservers()
     }
     
@@ -56,6 +55,7 @@ public final class AdaptivePoller: @unchecked Sendable {
         stop()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        DistributedNotificationCenter.default().removeObserver(self)
     }
     
     public func start() {
@@ -76,6 +76,20 @@ public final class AdaptivePoller: @unchecked Sendable {
         pathMonitor?.cancel()
         pathMonitor = nil
         weatherRetryTask?.cancel()
+        weatherRetryTask = nil
+    }
+    
+    public func registerPopoverState(for metric: MetricType, isShown: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        if isShown {
+            openPopovers.insert(metric)
+        } else {
+            openPopovers.remove(metric)
+        }
+        
+        updateTargetStateLocked()
     }
     
     public func registerPopoverState(isShown: Bool) {
@@ -83,12 +97,18 @@ public final class AdaptivePoller: @unchecked Sendable {
         defer { lock.unlock() }
         
         if isShown {
-            openPopoverCount += 1
+            legacyOpenPopoverCount += 1
         } else {
-            openPopoverCount = max(0, openPopoverCount - 1)
+            legacyOpenPopoverCount = max(0, legacyOpenPopoverCount - 1)
         }
         
-        let targetState: State = openPopoverCount > 0 ? .active : .passive
+        updateTargetStateLocked()
+    }
+    
+    private func updateTargetStateLocked() {
+        let hasOpenPopover = !openPopovers.isEmpty || legacyOpenPopoverCount > 0
+        let targetState: State = hasOpenPopover ? .active : .passive
+        
         guard currentState != .suspended else {
             previousActiveState = targetState
             return
@@ -108,6 +128,8 @@ public final class AdaptivePoller: @unchecked Sendable {
         currentState = .suspended
         timer?.cancel()
         timer = nil
+        weatherTimer?.cancel()
+        weatherTimer = nil
     }
     
     public func resume() {
@@ -116,12 +138,19 @@ public final class AdaptivePoller: @unchecked Sendable {
         guard currentState == .suspended else { return }
         currentState = previousActiveState
         reconfigureTimer(for: currentState)
+        startWeatherTimer()
     }
     
     public func reconfigure() {
         lock.lock()
         defer { lock.unlock() }
         reconfigureTimer(for: currentState)
+    }
+    
+    private func isSystemIdle() -> Bool {
+        // CGEventSource measures seconds since any user input (keyboard, mouse, trackpad)
+        let idleSec = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        return idleSec >= 45.0
     }
     
     private func reconfigureTimer(for state: State) {
@@ -136,16 +165,23 @@ public final class AdaptivePoller: @unchecked Sendable {
         switch state {
         case .passive:
             let userSec = AppPreferences.shared.passiveInterval
-            intervalMs = max(250, Int(userSec * 1000.0))
-            leewayMs = 10
+            if isIdleThrottled {
+                // When computer is unattended, throttle to 5-10s with generous leeway to let CPU sleep
+                intervalMs = max(5000, Int(userSec * 2500.0))
+                leewayMs = 1000
+            } else {
+                intervalMs = max(500, Int(userSec * 1000.0))
+                leewayMs = max(100, intervalMs / 4)
+            }
         case .active:
             intervalMs = 500
-            leewayMs = 10
+            leewayMs = 50
         case .suspended:
             return
         }
         
-        let newTimer = DispatchSource.makeTimerSource(flags: .strict, queue: queue)
+        // Coalesced timer without .strict allows macOS power management to keep CPU package in deep C-states
+        let newTimer = DispatchSource.makeTimerSource(queue: queue)
         newTimer.schedule(
             deadline: .now(),
             repeating: .milliseconds(intervalMs),
@@ -164,31 +200,44 @@ public final class AdaptivePoller: @unchecked Sendable {
     private func tick() {
         lock.lock()
         tickCount += 1
-        let isPopoverOpen = openPopoverCount > 0
-        let currentTick = tickCount
+        let popovers = openPopovers
+        let isAnyPopoverOpen = !popovers.isEmpty || legacyOpenPopoverCount > 0
+        let currentIdle = !isAnyPopoverOpen && isSystemIdle()
+        
+        if currentIdle != isIdleThrottled {
+            isIdleThrottled = currentIdle
+            reconfigureTimer(for: currentState)
+        }
         lock.unlock()
         
+        // Only run expensive top process reading or nettop child processes when a relevant popover is actively open!
         var topMem: [ProcessItem] = []
         var topCPU: [ProcessItem] = []
         var topNet: [NetworkProcessItem] = []
-        if isPopoverOpen || (currentTick % 3 == 0) {
-            let (memList, cpuList) = processReader.readTopProcesses(limit: 5)
-            topMem = memList
-            topCPU = cpuList
-            topNet = networkReader.readTopNetworkProcesses(limit: 5)
+        
+        if isAnyPopoverOpen {
+            let needsProc = popovers.isEmpty || popovers.contains(.cpu) || popovers.contains(.memory)
+            let needsNet = popovers.isEmpty || popovers.contains(.network)
+            
+            if needsProc {
+                let (memList, cpuList) = processReader.readTopProcesses(limit: 5)
+                topMem = memList
+                topCPU = cpuList
+            }
+            if needsNet {
+                topNet = networkReader.readTopNetworkProcesses(limit: 5)
+            }
         }
         
         let cpuStats = cpuReader.readSystemUsage(topProcesses: topCPU)
         let memStats = memoryReader.readMemoryUsage(topProcesses: topMem)
         let netStats = networkReader.readNetworkUsage(topProcesses: topNet)
         let diskStats = diskReader.readDiskUsage()
-        let batStats = batteryReader.readBatteryUsage()
         let tempStats = tempReader.readTemperatures()
-        let dispStats = displayReader.readDisplays()
         
         let state: State
-        let callback: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, BatteryStats, State) -> Void)?
-        let extCallback: (@Sendable @MainActor (TemperatureStats, DisplayStats) -> Void)?
+        let callback: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, State) -> Void)?
+        let extCallback: (@Sendable @MainActor (TemperatureStats) -> Void)?
         lock.lock()
         state = currentState
         callback = self.onMetricsUpdated
@@ -196,8 +245,8 @@ public final class AdaptivePoller: @unchecked Sendable {
         lock.unlock()
         
         DispatchQueue.main.async {
-            callback?(cpuStats, memStats, netStats, diskStats, batStats, state)
-            extCallback?(tempStats, dispStats)
+            callback?(cpuStats, memStats, netStats, diskStats, state)
+            extCallback?(tempStats)
         }
     }
     
@@ -215,10 +264,30 @@ public final class AdaptivePoller: @unchecked Sendable {
             name: NSWorkspace.screensDidWakeNotification,
             object: nil
         )
-        NotificationCenter.default.addObserver(
+        wsCenter.addObserver(
             self,
-            selector: #selector(handleDisplayChange),
-            name: NSApplication.didChangeScreenParametersNotification,
+            selector: #selector(handleSystemSleep),
+            name: NSWorkspace.willSleepNotification,
+            object: nil
+        )
+        wsCenter.addObserver(
+            self,
+            selector: #selector(handleSystemWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+        
+        let distCenter = DistributedNotificationCenter.default()
+        distCenter.addObserver(
+            self,
+            selector: #selector(handleScreenLocked),
+            name: NSNotification.Name("com.apple.screenIsLocked"),
+            object: nil
+        )
+        distCenter.addObserver(
+            self,
+            selector: #selector(handleScreenUnlocked),
+            name: NSNotification.Name("com.apple.screenIsUnlocked"),
             object: nil
         )
     }
@@ -231,11 +300,20 @@ public final class AdaptivePoller: @unchecked Sendable {
         resume()
     }
     
-    @objc private func handleDisplayChange() {
-        // Trigger immediate tick when displays change
-        queue.async { [weak self] in
-            self?.tick()
-        }
+    @objc private func handleSystemSleep() {
+        suspend()
+    }
+    
+    @objc private func handleSystemWake() {
+        resume()
+    }
+    
+    @objc private func handleScreenLocked() {
+        suspend()
+    }
+    
+    @objc private func handleScreenUnlocked() {
+        resume()
     }
     
     // MARK: - Weather Polling
@@ -268,8 +346,6 @@ public final class AdaptivePoller: @unchecked Sendable {
         startPathMonitor()
     }
     
-    /// At login the network is often not up yet: refetch as soon as connectivity appears
-    /// if the last attempt failed or there is no weather to show.
     private func startPathMonitor() {
         guard pathMonitor == nil else { return }
         let monitor = NWPathMonitor()

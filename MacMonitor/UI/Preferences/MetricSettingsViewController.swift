@@ -166,18 +166,6 @@ public final class MetricSettingsViewController: NSViewController, SingleMetricW
             )
             moduleRows.addArrangedSubview(p1)
             
-        case .displays:
-            let p1 = SettingsLayout.paragraph(
-                "Displays & Monitors inspects active monitor connections, native pixel resolutions, high refresh rates " +
-                "(including Apple 120Hz ProMotion), retina scaling configurations, and color profiles via Quartz Display Services."
-            )
-            let openSysDisplays = NSButton(title: "Open macOS Displays Settings...", target: self, action: #selector(openDisplaySettings))
-            openSysDisplays.bezelStyle = .rounded
-            openSysDisplays.controlSize = .small
-            
-            moduleRows.addArrangedSubview(p1)
-            moduleRows.addArrangedSubview(openSysDisplays)
-            
         case .disk:
             let p1 = SettingsLayout.paragraph(
                 "Disk Storage inspects root APFS container volumes, tracking total allocated space, system snapshots, " +
@@ -199,21 +187,8 @@ public final class MetricSettingsViewController: NSViewController, SingleMetricW
             )
             let p2 = SettingsLayout.paragraph(
                 "Customization options:\n" +
-                "• Standard: Dual-row upload (⇡) and download (⇣) speeds in dynamic K/s and M/s.\n" +
+                "• Standard: Dual-row upload (↑) and download (↓) speeds in dynamic K/s and M/s.\n" +
                 "• Text Only: Combined total throughput in a single line."
-            )
-            moduleRows.addArrangedSubview(p1)
-            
-        case .battery:
-            let p1 = SettingsLayout.paragraph(
-                "Battery & Power interfaces directly with Apple Smart Battery IOKit registries, querying live battery charge, " +
-                "maximum design health capacity, AC adapter wattage, current cycle count, and remaining runtime or charge completion time."
-            )
-            let p2 = SettingsLayout.paragraph(
-                "Customization options:\n" +
-                "• Standard: Numerical percentage accompanied by a responsive battery icon with fill level and charging indicator.\n" +
-                "• Bar Only: Battery icon glyph only.\n" +
-                "• Text Only: Numerical percentage only."
             )
             moduleRows.addArrangedSubview(p1)
             
@@ -427,10 +402,6 @@ public final class MetricSettingsViewController: NSViewController, SingleMetricW
         prefs.temperatureUnit = unit
         widgetPreview.refreshPreview()
         livePreview.refreshPreview()
-    }
-    
-    @objc private func openDisplaySettings() {
-        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/PreferencePanes/Displays.prefPane"))
     }
     
     // MARK: - Weather Action Handlers

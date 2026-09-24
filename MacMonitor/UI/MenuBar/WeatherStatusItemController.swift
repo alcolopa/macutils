@@ -1,8 +1,9 @@
 import AppKit
 
 @MainActor
-public final class WeatherStatusItemController: NSObject, NSPopoverDelegate {
-    public let statusItem: NSStatusItem
+public final class WeatherStatusItemController: NSObject, NSPopoverDelegate, MetricStatusItemControlling {
+    public weak var statusItem: NSStatusItem?
+    public let metricType: MetricType = .weather
     private let barView = WeatherBarItemView(frame: NSRect(x: 0, y: 0, width: 64, height: 22))
     private let popover = NSPopover()
     private let popoverVC = WeatherPopoverViewController()
@@ -13,36 +14,56 @@ public final class WeatherStatusItemController: NSObject, NSPopoverDelegate {
     public var onRefreshRequested: (@Sendable () -> Void)?
     
     public override init() {
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        
-        setupButton()
         setupPopover()
+    }
+    
+    public func attach(to item: NSStatusItem) {
+        detach()
+        self.statusItem = item
+        setupButton()
         syncLength()
+    }
+    
+    public func detach() {
+        closePopover()
+        barView.removeFromSuperview()
+        if let button = statusItem?.button {
+            if button.target === self {
+                button.target = nil
+                button.action = nil
+            }
+        }
+        self.statusItem = nil
+    }
+    
+    public func destroy() {
+        detach()
     }
     
     /// Sizes the status item to its content so widgets aren't spaced out for nothing.
     public func syncLength() {
+        guard let statusItem = statusItem else { return }
         statusItem.length = ceil(barView.intrinsicContentSize.width + BarChrome.extraWidth(for: .weather))
         barView.needsDisplay = true
     }
     
     private func setupButton() {
-        if let button = statusItem.button {
-            button.frame = NSRect(x: 0, y: 0, width: 64, height: 22)
-            button.addSubview(barView)
-            button.target = self
-            button.action = #selector(handleButtonClick(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            
-            barView.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                barView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-                barView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-                barView.topAnchor.constraint(equalTo: button.topAnchor),
-                barView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
-            ])
-        }
+        guard let button = statusItem?.button else { return }
+        button.subviews.forEach { $0.removeFromSuperview() }
+        button.frame = NSRect(x: 0, y: 0, width: 64, height: 22)
+        button.addSubview(barView)
+        button.target = self
+        button.action = #selector(handleButtonClick(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        
+        barView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            barView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            barView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            barView.topAnchor.constraint(equalTo: button.topAnchor),
+            barView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+        ])
     }
     
     private func setupPopover() {
@@ -58,7 +79,7 @@ public final class WeatherStatusItemController: NSObject, NSPopoverDelegate {
     }
     
     @objc public func handleButtonClick(_ sender: AnyObject?) {
-        guard let event = NSApp.currentEvent else { return }
+        guard let event = NSApp.currentEvent, let statusItem = statusItem else { return }
         if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             let menu = PreferencesMenu.makeMenu()
             statusItem.menu = menu
@@ -73,15 +94,22 @@ public final class WeatherStatusItemController: NSObject, NSPopoverDelegate {
         }
     }
     
+    private var lastStats: WeatherStats?
+    
     public func update(stats: WeatherStats) {
+        lastStats = stats
         barView.updateWeather(stats: stats)
         syncLength()
-        _ = popoverVC.view // load eagerly so data is ready before first open
-        popoverVC.update(stats: stats)
+        if popover.isShown {
+            popoverVC.update(stats: stats)
+        }
     }
     
     // MARK: - NSPopoverDelegate
     public func popoverWillShow(_ notification: Notification) {
+        if let last = lastStats {
+            popoverVC.update(stats: last)
+        }
         onPopoverStateChanged?(true)
     }
     
@@ -90,7 +118,7 @@ public final class WeatherStatusItemController: NSObject, NSPopoverDelegate {
     }
 }
 
-public final class WeatherBarItemView: NSView {
+public final class WeatherBarItemView: MenuBarItemContentView {
     private var stats: WeatherStats?
     
     public override init(frame frameRect: NSRect) {

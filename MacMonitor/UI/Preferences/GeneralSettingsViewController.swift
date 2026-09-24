@@ -95,7 +95,7 @@ public final class GeneralSettingsViewController: NSViewController, @preconcurre
         btnRow.spacing = 8
         
         stack.addArrangedSubview(SettingsLayout.card(title: "Widgets", [
-            SettingsLayout.paragraph("Tick a widget to show it in the menu bar. Drag rows to reorder, or select one and use the buttons."),
+            SettingsLayout.paragraph("Tick a widget to show it in the menu bar. Rearrange the list to organize your preferences, or hold ⌘ (Command) and drag any icon in the macOS menu bar to smoothly position it."),
             tableScroll,
             btnRow
         ]))

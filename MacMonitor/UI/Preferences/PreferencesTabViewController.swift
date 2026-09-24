@@ -18,10 +18,8 @@ public final class PreferencesTabViewController: NSTabViewController {
             (.memory, "Memory", "memorychip"),
             (.temperatures, "Temps", "thermometer.medium"),
             (.weather, "Weather", "cloud.sun.fill"),
-            (.displays, "Displays", "display"),
             (.disk, "Disk", "internaldrive"),
-            (.network, "Network", "network"),
-            (.battery, "Battery", "battery.100")
+            (.network, "Network", "network")
         ]
         
         for (metric, label, iconName) in metricConfigs {

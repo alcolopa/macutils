@@ -5,9 +5,7 @@ public enum MetricType: String, Sendable, CaseIterable, Codable {
     case memory       = "memory"
     case disk         = "disk"
     case network      = "network"
-    case battery      = "battery"
     case temperatures = "temperatures"
-    case displays     = "displays"
     case weather      = "weather"
     
     public var displayName: String {
@@ -16,9 +14,7 @@ public enum MetricType: String, Sendable, CaseIterable, Codable {
         case .memory:       return "Memory & Swap"
         case .disk:         return "Disk Storage"
         case .network:      return "Network Activity"
-        case .battery:      return "Battery & Power"
         case .temperatures: return "Temperatures & Sensors"
-        case .displays:     return "Displays & Monitors"
         case .weather:      return "Weather & Forecast"
         }
     }
@@ -29,9 +25,7 @@ public enum MetricType: String, Sendable, CaseIterable, Codable {
         case .memory:       return "memorychip"
         case .disk:         return "internaldrive"
         case .network:      return "network"
-        case .battery:      return "battery.100"
         case .temperatures: return "thermometer.medium"
-        case .displays:     return "display"
         case .weather:      return "cloud.sun.fill"
         }
     }
@@ -220,7 +214,7 @@ public struct BarOptions: Sendable, Equatable {
             iconSize: .medium,
             iconTint: .automatic,
             padding: 0,
-            // weather already draws its own condition icon; battery draws its own battery
+            // weather already draws its own condition icon
             order: (metric == .weather ? [] : [.icon]) + [.element(AppPreferences.defaultElement(for: metric))]
         )
     }
@@ -234,9 +228,7 @@ public final class AppPreferences: @unchecked Sendable {
     private let keyShowMemory = "showMemory"
     private let keyShowDisk = "showDisk"
     private let keyShowNetwork = "showNetwork"
-    private let keyShowBattery = "showBattery"
     private let keyShowTemperatures = "showTemperatures"
-    private let keyShowDisplays = "showDisplays"
     private let keyShowWeather = "showWeather"
     private let keyWeatherApiKey = "weatherApiKey"
     private let keyWeatherCity = "weatherCity"
@@ -258,9 +250,7 @@ public final class AppPreferences: @unchecked Sendable {
             keyShowMemory: true,
             keyShowDisk: true,
             keyShowNetwork: true,
-            keyShowBattery: true,
             keyShowTemperatures: true,
-            keyShowDisplays: true,
             keyShowWeather: true,
             keyWeatherApiKey: "",
             keyWeatherCity: "auto",
@@ -293,19 +283,9 @@ public final class AppPreferences: @unchecked Sendable {
         set { defaults.set(newValue, forKey: keyShowNetwork); notifyChange() }
     }
     
-    public var showBattery: Bool {
-        get { defaults.bool(forKey: keyShowBattery) }
-        set { defaults.set(newValue, forKey: keyShowBattery); notifyChange() }
-    }
-    
     public var showTemperatures: Bool {
         get { defaults.bool(forKey: keyShowTemperatures) }
         set { defaults.set(newValue, forKey: keyShowTemperatures); notifyChange() }
-    }
-    
-    public var showDisplays: Bool {
-        get { defaults.bool(forKey: keyShowDisplays) }
-        set { defaults.set(newValue, forKey: keyShowDisplays); notifyChange() }
     }
     
     public var showWeather: Bool {
@@ -342,9 +322,7 @@ public final class AppPreferences: @unchecked Sendable {
         case .memory: return showMemory
         case .disk: return showDisk
         case .network: return showNetwork
-        case .battery: return showBattery
         case .temperatures: return showTemperatures
-        case .displays: return showDisplays
         case .weather: return showWeather
         }
     }
@@ -355,9 +333,7 @@ public final class AppPreferences: @unchecked Sendable {
         case .memory: showMemory = visible
         case .disk: showDisk = visible
         case .network: showNetwork = visible
-        case .battery: showBattery = visible
         case .temperatures: showTemperatures = visible
-        case .displays: showDisplays = visible
         case .weather: showWeather = visible
         }
     }
@@ -459,8 +435,6 @@ public final class AppPreferences: @unchecked Sendable {
         switch metric {
         case .cpu:
             return [.textOnly, .standard, .barOnly, .verticalBar, .circularGauge]
-        case .battery:
-            return [.textOnly, .standard, .barOnly, .verticalBar, .circularGauge]
         case .weather:
             // Bars and gauges don't mean anything for weather, so only real weather readings are offered.
             // .textOnly = temperature, .barOnly = condition icon.
@@ -471,8 +445,6 @@ public final class AppPreferences: @unchecked Sendable {
             return [.textOnly, .barOnly, .verticalBar, .circularGauge, .multicolorCircle]
         case .network:
             return [.textOnly, .standard, .verticalBar]
-        case .displays:
-            return [.standard, .verticalBar]
         }
     }
     
@@ -519,7 +491,7 @@ public final class AppPreferences: @unchecked Sendable {
             if let s = part.style, !allowed.contains(s) { return fallback }
             return part
         }.filter { part in
-            if part == .icon && (metric == .battery || metric == .weather) { return false }
+            if part == .icon && metric == .weather { return false }
             return seen.insert(part).inserted
         }
         if !order.contains(where: { $0.style != nil }) { order.append(fallback) }

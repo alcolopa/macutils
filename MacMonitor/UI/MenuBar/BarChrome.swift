@@ -1,5 +1,25 @@
 import AppKit
 
+/// Base view for menu bar item contents that passes mouse events to the parent NSStatusBarButton,
+/// allowing native clicks and Cmd-drag reordering to work properly.
+open class MenuBarItemContentView: NSView {
+    open override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
+    }
+}
+
+/// Protocol unifying status item controllers so they can be assigned dynamically to status item slots.
+@MainActor
+public protocol MetricStatusItemControlling: AnyObject {
+    var statusItem: NSStatusItem? { get set }
+    var metricType: MetricType { get }
+    func attach(to item: NSStatusItem)
+    func detach()
+    func syncLength()
+    func closePopover()
+}
+
+
 /// Shared menu bar decoration (icon, short label, padding) drawn around each widget's own content.
 @MainActor
 public enum BarChrome {
@@ -11,9 +31,7 @@ public enum BarChrome {
         case .memory:       return "MEM"
         case .disk:         return "SSD"
         case .network:      return "NET"
-        case .battery:      return "BAT"
         case .temperatures: return "TMP"
-        case .displays:     return "DSP"
         case .weather:      return "WX"
         }
     }

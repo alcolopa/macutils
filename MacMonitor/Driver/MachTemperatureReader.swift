@@ -11,19 +11,23 @@ public final class MachTemperatureReader: @unchecked Sendable {
     private let lock = NSLock()
     private var cachedStats: TemperatureStats?
     private var lastReadTime: UInt64 = 0
+    private var sensorNameCache: [UnsafeMutableRawPointer: String] = [:]
     
     // Dynamic symbols from IOKit
-    private typealias IOHIDEventSystemClientCreateFunc = @convention(c) (CFAllocator?) -> IOHIDEventSystemClientRef?
-    private typealias IOHIDEventSystemClientCopyServicesFunc = @convention(c) (IOHIDEventSystemClientRef?) -> CFArray?
-    private typealias IOHIDServiceClientCopyPropertyFunc = @convention(c) (IOHIDServiceClientRef?, CFString?) -> Unmanaged<CFTypeRef>?
-    private typealias IOHIDServiceClientCopyEventFunc = @convention(c) (IOHIDServiceClientRef?, UInt32, Int32, Int64) -> IOHIDEventRef?
-    private typealias IOHIDEventGetFloatValueFunc = @convention(c) (IOHIDEventRef?, UInt32) -> Double
+    private typealias IOHIDEventSystemClientCreateFunc = @convention(c) (CFAllocator?) -> Unmanaged<CFTypeRef>?
+    private typealias IOHIDEventSystemClientCopyServicesFunc = @convention(c) (UnsafeMutableRawPointer?) -> Unmanaged<CFArray>?
+    private typealias IOHIDServiceClientCopyPropertyFunc = @convention(c) (UnsafeMutableRawPointer?, CFString?) -> Unmanaged<CFTypeRef>?
+    private typealias IOHIDServiceClientCopyEventFunc = @convention(c) (UnsafeMutableRawPointer?, UInt32, Int32, Int64) -> Unmanaged<CFTypeRef>?
+    private typealias IOHIDEventGetFloatValueFunc = @convention(c) (UnsafeMutableRawPointer?, UInt32) -> Double
     
     private let clientCreate: IOHIDEventSystemClientCreateFunc?
     private let copyServices: IOHIDEventSystemClientCopyServicesFunc?
     private let copyProperty: IOHIDServiceClientCopyPropertyFunc?
     private let copyEvent: IOHIDServiceClientCopyEventFunc?
     private let getFloatValue: IOHIDEventGetFloatValueFunc?
+    
+    private var client: CFTypeRef?
+    private var clientPtr: UnsafeMutableRawPointer?
     
     public init() {
         let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW)
@@ -54,6 +58,12 @@ public final class MachTemperatureReader: @unchecked Sendable {
             self.copyEvent = nil
             self.getFloatValue = nil
         }
+        
+        if let clientCreate = self.clientCreate,
+           let clientRef = clientCreate(kCFAllocatorDefault)?.takeRetainedValue() {
+            self.client = clientRef
+            self.clientPtr = UnsafeMutableRawPointer(mutating: Unmanaged.passUnretained(clientRef).toOpaque())
+        }
     }
     
     public func readTemperatures() -> TemperatureStats {
@@ -62,54 +72,71 @@ public final class MachTemperatureReader: @unchecked Sendable {
         
         let now = mach_absolute_time()
         
+        // Return cached stats if sampled within the last 1 second to avoid excessive IOHID querying
+        if let cached = cachedStats, lastReadTime > 0 {
+            var timebase = mach_timebase_info()
+            mach_timebase_info(&timebase)
+            let elapsedNanos = (now - lastReadTime) * UInt64(timebase.numer) / UInt64(timebase.denom)
+            if elapsedNanos < 1_000_000_000 {
+                return cached
+            }
+        }
+        
         var sensorReadings: [SensorReading] = []
         var cpuTemps: [Double] = []
         var gpuTemps: [Double] = []
         var batteryTemp: Double? = nil
         
-        if let clientCreate = clientCreate,
-           let copyServices = copyServices,
+        if let copyServices = copyServices,
            let copyProperty = copyProperty,
            let copyEvent = copyEvent,
            let getFloatValue = getFloatValue,
-           let client = clientCreate(kCFAllocatorDefault) {
+           let clientPtr = clientPtr {
             
-            if let services = copyServices(client) {
-                let count = CFArrayGetCount(services)
-                let productKey = "Product" as CFString
-                
-                for i in 0..<count {
-                    let rawPtr = CFArrayGetValueAtIndex(services, i)
-                    let service = rawPtr.map { UnsafeMutableRawPointer(mutating: $0) }
+            autoreleasepool {
+                if let services = copyServices(clientPtr)?.takeRetainedValue() {
+                    let count = CFArrayGetCount(services)
+                    let productKey = "Product" as CFString
                     
-                    // Event type 15 = kIOHIDEventTypeTemperature
-                    // Field (15 << 16)
-                    if let event = copyEvent(service, 15, 0, 0) {
-                        let tempVal = getFloatValue(event, 15 << 16)
+                    for i in 0..<count {
+                        let rawPtr = CFArrayGetValueAtIndex(services, i)
+                        guard let service = rawPtr.map({ UnsafeMutableRawPointer(mutating: $0) }) else { continue }
                         
-                        var name = "Thermal Sensor"
-                        if let nameRef = copyProperty(service, productKey)?.takeRetainedValue() as? String {
-                            name = nameRef
-                        }
-                        
-                        // Sanity check valid reading
-                        if tempVal > 0.0 && tempVal < 140.0 {
-                            let lower = name.lowercased()
-                            let cat: SensorCategory
-                            if lower.contains("tdie") || lower.contains("cpu") || lower.contains("tp0") || lower.contains("tp1") {
-                                cat = .cpu
-                                cpuTemps.append(tempVal)
-                            } else if lower.contains("gpu") || lower.contains("tg0") {
-                                cat = .gpu
-                                gpuTemps.append(tempVal)
-                            } else if lower.contains("battery") || lower.contains("gas gauge") {
-                                cat = .battery
-                                if batteryTemp == nil { batteryTemp = tempVal }
+                        // Event type 15 = kIOHIDEventTypeTemperature
+                        // Field (15 << 16)
+                        if let eventRef = copyEvent(service, 15, 0, 0)?.takeRetainedValue() {
+                            let eventPtr = UnsafeMutableRawPointer(mutating: Unmanaged.passUnretained(eventRef).toOpaque())
+                            let tempVal = getFloatValue(eventPtr, 15 << 16)
+                            
+                            var name: String
+                            if let cachedName = sensorNameCache[service] {
+                                name = cachedName
+                            } else if let nameRef = copyProperty(service, productKey)?.takeRetainedValue() as? String {
+                                name = nameRef
+                                sensorNameCache[service] = nameRef
                             } else {
-                                cat = .system
+                                name = "Thermal Sensor"
                             }
                             
-                            sensorReadings.append(SensorReading(name: name, temperature: tempVal, category: cat))
+                            // Sanity check valid reading
+                            if tempVal > 0.0 && tempVal < 140.0 {
+                                let lower = name.lowercased()
+                                let cat: SensorCategory
+                                if lower.contains("tdie") || lower.contains("cpu") || lower.contains("tp0") || lower.contains("tp1") {
+                                    cat = .cpu
+                                    cpuTemps.append(tempVal)
+                                } else if lower.contains("gpu") || lower.contains("tg0") {
+                                    cat = .gpu
+                                    gpuTemps.append(tempVal)
+                                } else if lower.contains("battery") || lower.contains("gas gauge") {
+                                    cat = .battery
+                                    if batteryTemp == nil { batteryTemp = tempVal }
+                                } else {
+                                    cat = .system
+                                }
+                                
+                                sensorReadings.append(SensorReading(name: name, temperature: tempVal, category: cat))
+                            }
                         }
                     }
                 }

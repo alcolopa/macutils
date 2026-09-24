@@ -32,10 +32,15 @@ public final class NetworkPopoverViewController: NSViewController {
         setupLayout()
     }
     
+    private var lastStats: NetworkStats?
+    
     public override func viewWillAppear() {
         super.viewWillAppear()
         scrollView.contentView.scroll(to: .zero)
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        if let last = lastStats {
+            updateVisibleDetails(stats: last)
+        }
     }
     
     private func setupLayout() {
@@ -111,8 +116,14 @@ public final class NetworkPopoverViewController: NSViewController {
     }
     
     public func update(stats: NetworkStats) {
+        lastStats = stats
         graphView.push(val1: stats.bytesInPerSec, val2: stats.bytesOutPerSec)
         
+        guard isViewLoaded && view.window != nil else { return }
+        updateVisibleDetails(stats: stats)
+    }
+    
+    private func updateVisibleDetails(stats: NetworkStats) {
         let inSpeedStr = NetworkStats.formatSpeed(stats.bytesInPerSec)
         let outSpeedStr = NetworkStats.formatSpeed(stats.bytesOutPerSec)
         

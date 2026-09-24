@@ -1,8 +1,9 @@
 import AppKit
 
 @MainActor
-public final class NetworkStatusItemController: NSObject, NSPopoverDelegate {
-    public let statusItem: NSStatusItem
+public final class NetworkStatusItemController: NSObject, NSPopoverDelegate, MetricStatusItemControlling {
+    public weak var statusItem: NSStatusItem?
+    public let metricType: MetricType = .network
     private let barView = NetworkBarItemView(frame: NSRect(x: 0, y: 0, width: 62, height: 22))
     private let popover = NSPopover()
     private let popoverVC = NetworkPopoverViewController()
@@ -12,36 +13,56 @@ public final class NetworkStatusItemController: NSObject, NSPopoverDelegate {
     public var onPopoverStateChanged: (@Sendable (Bool) -> Void)?
     
     public override init() {
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        
-        setupButton()
         setupPopover()
+    }
+    
+    public func attach(to item: NSStatusItem) {
+        detach()
+        self.statusItem = item
+        setupButton()
         syncLength()
+    }
+    
+    public func detach() {
+        closePopover()
+        barView.removeFromSuperview()
+        if let button = statusItem?.button {
+            if button.target === self {
+                button.target = nil
+                button.action = nil
+            }
+        }
+        self.statusItem = nil
+    }
+    
+    public func destroy() {
+        detach()
     }
     
     /// Sizes the status item to its content so widgets aren't spaced out for nothing.
     public func syncLength() {
+        guard let statusItem = statusItem else { return }
         statusItem.length = ceil(barView.intrinsicContentSize.width + BarChrome.extraWidth(for: .network))
         barView.needsDisplay = true
     }
     
     private func setupButton() {
-        if let button = statusItem.button {
-            button.frame = NSRect(x: 0, y: 0, width: 62, height: 22)
-            button.addSubview(barView)
-            button.target = self
-            button.action = #selector(handleButtonClick(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            
-            barView.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                barView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-                barView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-                barView.topAnchor.constraint(equalTo: button.topAnchor),
-                barView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
-            ])
-        }
+        guard let button = statusItem?.button else { return }
+        button.subviews.forEach { $0.removeFromSuperview() }
+        button.frame = NSRect(x: 0, y: 0, width: 62, height: 22)
+        button.addSubview(barView)
+        button.target = self
+        button.action = #selector(handleButtonClick(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        
+        barView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            barView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            barView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            barView.topAnchor.constraint(equalTo: button.topAnchor),
+            barView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+        ])
     }
     
     private func setupPopover() {
@@ -53,7 +74,7 @@ public final class NetworkStatusItemController: NSObject, NSPopoverDelegate {
     }
     
     @objc public func handleButtonClick(_ sender: AnyObject?) {
-        guard let event = NSApp.currentEvent else { return }
+        guard let event = NSApp.currentEvent, let statusItem = statusItem else { return }
         if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             let menu = PreferencesMenu.makeMenu()
             statusItem.menu = menu
@@ -85,9 +106,9 @@ public final class NetworkStatusItemController: NSObject, NSPopoverDelegate {
     }
 }
 
-final class NetworkBarItemView: NSView {
-    private var inSpeedText: String = "⇣0K"
-    private var outSpeedText: String = "⇡0K"
+final class NetworkBarItemView: MenuBarItemContentView {
+    private var inSpeedText: String = "↓0K"
+    private var outSpeedText: String = "↑0K"
     private var inFraction: Double = 0
     private var outFraction: Double = 0
     private var compactSpeedText: String = "0K"
@@ -104,10 +125,12 @@ final class NetworkBarItemView: NSView {
     
     private func width(for style: MetricDisplayStyle) -> CGFloat {
         switch style {
-        case .standard: return 52
-        case .textOnly: return 70
-        case .verticalBar: return 22
-        default: return 52
+        case .standard, .textOnly:
+            return 30.0
+        case .verticalBar:
+            return 14.0
+        default:
+            return 30.0
         }
     }
     
@@ -137,8 +160,8 @@ final class NetworkBarItemView: NSView {
             }
         }
         
-        inSpeedText = compactFormat(bytes: inSec, arrow: "⇣")
-        outSpeedText = compactFormat(bytes: outSec, arrow: "⇡")
+        inSpeedText = compactFormat(bytes: inSec, arrow: "↓")
+        outSpeedText = compactFormat(bytes: outSec, arrow: "↑")
         
         let kbTotal = Double(total) / 1024.0
         let mbTotal = kbTotal / 1024.0
@@ -171,20 +194,23 @@ final class NetworkBarItemView: NSView {
     private func drawElement(_ style: MetricDisplayStyle, in rect: CGRect) {
         let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor = isDark ? NSColor.white : NSColor.black
-        _ = textColor
+        
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byTruncatingTail
         
         if style == .textOnly {
-            // Upload/download arrows on one line, no icon
-            let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
+            // Upload/download arrows on one line, truncating with ellipsis if > 30 pt
+            let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .semibold)
             let str = NSMutableAttributedString(
-                string: outSpeedText,
-                attributes: [.font: font, .foregroundColor: textColor])
-            str.append(NSAttributedString(string: " ", attributes: [.font: font]))
-            str.append(NSAttributedString(
-                string: inSpeedText,
-                attributes: [.font: font, .foregroundColor: textColor]))
-            let size = str.size()
-            str.draw(at: CGPoint(x: (rect.width - size.width) / 2.0, y: (rect.height - size.height) / 2.0))
+                string: "\(outSpeedText) \(inSpeedText)",
+                attributes: [
+                    .font: font,
+                    .foregroundColor: textColor,
+                    .paragraphStyle: paragraphStyle
+                ]
+            )
+            let textRect = CGRect(x: 0, y: (rect.height - 12.0) / 2.0, width: rect.width, height: 12.0)
+            str.draw(with: textRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
             return
         }
         
@@ -199,22 +225,23 @@ final class NetworkBarItemView: NSView {
         
         let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .medium)
         
-        let upAttrs: [NSAttributedString.Key: Any] = [
+        let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: textColor
-        ]
-        let downAttrs: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: textColor
+            .foregroundColor: textColor,
+            .paragraphStyle: paragraphStyle
         ]
         
-        let upStr = NSAttributedString(string: outSpeedText, attributes: upAttrs)
-        let downStr = NSAttributedString(string: inSpeedText, attributes: downAttrs)
+        let upStr = NSAttributedString(string: outSpeedText, attributes: attrs)
+        let downStr = NSAttributedString(string: inSpeedText, attributes: attrs)
         
+        let lineH: CGFloat = 10.0
         let topY = rect.height / 2.0 + 0.5
         let bottomY = 1.0
         
-        upStr.draw(at: CGPoint(x: 2.0, y: topY))
-        downStr.draw(at: CGPoint(x: 2.0, y: bottomY))
+        let upRect = CGRect(x: 0, y: topY, width: rect.width, height: lineH)
+        let downRect = CGRect(x: 0, y: bottomY, width: rect.width, height: lineH)
+        
+        upStr.draw(with: upRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+        downStr.draw(with: downRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }

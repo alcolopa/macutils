@@ -6,10 +6,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var memoryController: MemoryStatusItemController?
     private var diskController: DiskStatusItemController?
     private var networkController: NetworkStatusItemController?
-    private var batteryController: BatteryStatusItemController?
     private var tempController: TemperatureStatusItemController?
-    private var displayController: DisplayStatusItemController?
     private var weatherController: WeatherStatusItemController?
+    
+    /// Fixed pool of NSStatusItems corresponding to slot positions in the status bar.
+    /// By allocating them once and never removing/recreating them, reordering is completely
+    /// instantaneous, flicker-free, and avoids destroying/rebuilding NSStatusItems.
+    private var statusItemSlots: [NSStatusItem] = []
     
     private var poller: AdaptivePoller?
     
@@ -38,7 +41,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let poller = AdaptivePoller()
         self.poller = poller
         
-        rebuildControllersInOrder()
+        setupControllersAndSlots()
         
         var appliedInterval = prefs.passiveInterval
         var appliedWeather = "\(prefs.weatherUpdateInterval)|\(prefs.weatherForecastMode.rawValue)"
@@ -54,22 +57,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         prefs.onOrderChanged = { [weak self] in
-            self?.rebuildControllersInOrder()
+            // Instantly rearrange controllers into status bar slots without destroying/recreating items
+            self?.applyOrderToSlots()
         }
         
-        poller.onMetricsUpdated = { [weak self] cpuStats, memStats, netStats, diskStats, batStats, _ in
+        poller.onMetricsUpdated = { [weak self] cpuStats, memStats, netStats, diskStats, _ in
             guard let self = self else { return }
             self.cpuController?.update(stats: cpuStats)
             self.memoryController?.update(stats: memStats)
             self.networkController?.update(stats: netStats)
             self.diskController?.update(stats: diskStats)
-            self.batteryController?.update(stats: batStats)
         }
         
-        poller.onExtendedMetricsUpdated = { [weak self] tempStats, dispStats in
+        poller.onExtendedMetricsUpdated = { [weak self] tempStats in
             guard let self = self else { return }
             self.tempController?.update(stats: tempStats)
-            self.displayController?.update(stats: dispStats)
         }
         
         poller.onWeatherUpdated = { [weak self] weatherStats in
@@ -86,6 +88,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.closeAllPopovers() }
+        }
+
+        // Close open popovers when another application becomes active or when this app loses focus.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.closeAllPopovers() }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.closeAllPopovers() }
+        }
+
+        // Catch clicks outside the app/popover that switch focus to other windows/apps.
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.closeAllPopovers()
+            }
         }
         
         if CommandLine.arguments.contains("--preferences") || CommandLine.arguments.contains("--settings") {
@@ -125,78 +147,78 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu
     }
     
-    private func rebuildControllersInOrder() {
-        let prefs = AppPreferences.shared
+    private func setupControllersAndSlots() {
         let currentPoller = self.poller
         
-        // Destroy existing status items cleanly
-        cpuController = nil
-        memoryController = nil
-        diskController = nil
-        networkController = nil
-        batteryController = nil
-        tempController = nil
-        displayController = nil
-        weatherController = nil
+        let cpu = CPUStatusItemController()
+        cpu.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .cpu, isShown: isShown)
+        }
+        self.cpuController = cpu
         
-        // Instantiate in user's specified metricOrder
-        for metric in prefs.metricOrder {
-            switch metric {
-            case .cpu:
-                let cpu = CPUStatusItemController()
-                cpu.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.cpuController = cpu
-            case .memory:
-                let mem = MemoryStatusItemController()
-                mem.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.memoryController = mem
-            case .disk:
-                let disk = DiskStatusItemController()
-                disk.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.diskController = disk
-            case .network:
-                let net = NetworkStatusItemController()
-                net.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.networkController = net
-            case .battery:
-                let bat = BatteryStatusItemController()
-                bat.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.batteryController = bat
-            case .temperatures:
-                let temp = TemperatureStatusItemController()
-                temp.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.tempController = temp
-            case .displays:
-                let disp = DisplayStatusItemController()
-                disp.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                self.displayController = disp
-            case .weather:
-                let weather = WeatherStatusItemController()
-                weather.onPopoverStateChanged = { [weak currentPoller] isShown in
-                    currentPoller?.registerPopoverState(isShown: isShown)
-                }
-                weather.onRefreshRequested = { [weak currentPoller] in
-                    currentPoller?.refreshWeather()
-                }
-                self.weatherController = weather
-            }
+        let mem = MemoryStatusItemController()
+        mem.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .memory, isShown: isShown)
+        }
+        self.memoryController = mem
+        
+        let disk = DiskStatusItemController()
+        disk.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .disk, isShown: isShown)
+        }
+        self.diskController = disk
+        
+        let net = NetworkStatusItemController()
+        net.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .network, isShown: isShown)
+        }
+        self.networkController = net
+        
+        let temp = TemperatureStatusItemController()
+        temp.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .temperatures, isShown: isShown)
+        }
+        self.tempController = temp
+        
+        let weather = WeatherStatusItemController()
+        weather.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .weather, isShown: isShown)
+        }
+        weather.onRefreshRequested = { [weak currentPoller] in
+            currentPoller?.refreshWeather()
+        }
+        self.weatherController = weather
+        
+        // Allocate status item slots in the system status bar once
+        statusItemSlots = (0..<MetricType.allCases.count).map { _ in
+            NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         }
         
-        syncItemVisibility()
+        applyOrderToSlots()
+    }
+    
+    private func controller(for metric: MetricType) -> MetricStatusItemControlling? {
+        switch metric {
+        case .cpu: return cpuController
+        case .memory: return memoryController
+        case .disk: return diskController
+        case .network: return networkController
+        case .temperatures: return tempController
+        case .weather: return weatherController
+        }
+    }
+    
+    private func applyOrderToSlots() {
+        let prefs = AppPreferences.shared
+        let order = prefs.metricOrder
+        
+        for (index, metric) in order.enumerated() {
+            guard index < statusItemSlots.count,
+                  let ctrl = controller(for: metric) else { continue }
+            let slot = statusItemSlots[index]
+            ctrl.attach(to: slot)
+            slot.isVisible = prefs.isMetricVisible(metric)
+        }
     }
     
     private func closeAllPopovers() {
@@ -204,9 +226,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         memoryController?.closePopover()
         diskController?.closePopover()
         networkController?.closePopover()
-        batteryController?.closePopover()
         tempController?.closePopover()
-        displayController?.closePopover()
         weatherController?.closePopover()
     }
     
@@ -216,25 +236,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         memoryController?.syncLength()
         diskController?.syncLength()
         networkController?.syncLength()
-        batteryController?.syncLength()
         tempController?.syncLength()
-        displayController?.syncLength()
         weatherController?.syncLength()
     }
     
     private func syncItemVisibility() {
         let prefs = AppPreferences.shared
-        cpuController?.statusItem.isVisible = prefs.showCPU
-        memoryController?.statusItem.isVisible = prefs.showMemory
-        diskController?.statusItem.isVisible = prefs.showDisk
-        networkController?.statusItem.isVisible = prefs.showNetwork
-        batteryController?.statusItem.isVisible = prefs.showBattery
-        tempController?.statusItem.isVisible = prefs.showTemperatures
-        displayController?.statusItem.isVisible = prefs.showDisplays
-        weatherController?.statusItem.isVisible = prefs.showWeather
+        for metric in prefs.metricOrder {
+            if let ctrl = controller(for: metric), let slot = ctrl.statusItem {
+                slot.isVisible = prefs.isMetricVisible(metric)
+            }
+        }
     }
     
     public func applicationWillTerminate(_ notification: Notification) {
+        closeAllPopovers()
         poller?.stop()
+        for slot in statusItemSlots {
+            NSStatusBar.system.removeStatusItem(slot)
+        }
+        statusItemSlots.removeAll()
     }
 }
+

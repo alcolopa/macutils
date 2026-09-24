@@ -306,14 +306,6 @@ public final class SingleMetricWidgetPreviewView: NSView {
             gaugeHost.heightAnchor.constraint(equalToConstant: 16).isActive = true
             stack.addArrangedSubview(gaugeHost)
             
-        case (.battery, .barOnly):
-            let icon = NSImage(systemSymbolName: "battery.75", accessibilityDescription: nil)
-            let iv = NSImageView(image: icon ?? NSImage())
-            iv.contentTintColor = NSColor.headerTextColor
-            iv.widthAnchor.constraint(equalToConstant: 18).isActive = true
-            iv.heightAnchor.constraint(equalToConstant: 14).isActive = true
-            stack.addArrangedSubview(iv)
-            
         case (.temperatures, .circularGauge):
             let gaugeHost = MiniCanvasView(drawBlock: { ctx, bounds in
                 StatusItemRenderer.drawCircularGauge(in: ctx, rect: bounds, percentage: 48.0, fillColor: .systemOrange)
@@ -340,7 +332,7 @@ public final class SingleMetricWidgetPreviewView: NSView {
             stack.addArrangedSubview(gaugeHost)
             
         case (_, .barOnly) where metric != .weather && metric != .cpu:
-            let sample: Double = [.memory: 68, .disk: 62, .battery: 75, .temperatures: 48][metric] ?? 50
+            let sample: Double = [.memory: 68, .disk: 62, .temperatures: 48][metric] ?? 50
             let barHost = MiniCanvasView(drawBlock: { ctx, bounds in
                 StatusItemRenderer.drawHorizontalBar(in: ctx, rect: bounds, percentage: sample, fillColor: theme.primaryColor)
             })
@@ -380,15 +372,8 @@ public final class SingleMetricWidgetPreviewView: NSView {
             sparkHost.heightAnchor.constraint(equalToConstant: 11).isActive = true
             stack.addArrangedSubview(sparkHost)
             
-        case (.battery, .standard):
-            let iv = NSImageView(image: NSImage(systemSymbolName: "battery.75", accessibilityDescription: nil) ?? NSImage())
-            iv.contentTintColor = NSColor.headerTextColor
-            iv.widthAnchor.constraint(equalToConstant: 18).isActive = true
-            iv.heightAnchor.constraint(equalToConstant: 14).isActive = true
-            stack.addArrangedSubview(iv)
-            
         case (_, .verticalBar):
-            let sample: Double = [.cpu: 28, .memory: 68, .disk: 62, .battery: 75, .temperatures: 48, .weather: 65, .network: 40, .displays: 100][metric] ?? 50
+            let sample: Double = [.cpu: 28, .memory: 68, .disk: 62, .temperatures: 48, .weather: 65, .network: 40][metric] ?? 50
             let barHost = MiniCanvasView(drawBlock: { ctx, bounds in
                 StatusItemRenderer.drawVerticalBar(in: ctx, rect: bounds, percentage: sample, fillColor: theme.primaryColor)
             })
@@ -432,10 +417,8 @@ public final class SingleMetricWidgetPreviewView: NSView {
             }
         case .disk: return "68%"
         case .network: return "1.2M/s"
-        case .battery: return "95%"
         case .temperatures:
             return AppPreferences.shared.temperatureUnit == .fahrenheit ? "118°F" : "48°C"
-        case .displays: return "2"
         case .weather:
             return AppPreferences.shared.temperatureUnit == .fahrenheit ? "72°F" : "22°C"
         }

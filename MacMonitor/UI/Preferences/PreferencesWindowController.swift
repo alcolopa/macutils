@@ -20,6 +20,7 @@ public final class PreferencesWindowController: NSWindowController, NSWindowDele
         window.center()
         window.isReleasedWhenClosed = false
         window.showsToolbarButton = false
+        window.collectionBehavior = [.moveToActiveSpace, .participatesInCycle]
         window.minSize = NSSize(width: 680, height: 800)
         window.maxSize = NSSize(width: 680, height: 800) // Keep window size stable across tabs
         super.init(window: window)
@@ -47,6 +48,15 @@ public final class PreferencesWindowController: NSWindowController, NSWindowDele
             if idx >= 0 && idx < tabVC.tabViewItems.count {
                 tabVC.selectedTabViewItemIndex = idx
             }
+        }
+        
+        // Move window to the currently active screen/space
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let windowSize = window.frame.size
+            let x = screenFrame.origin.x + (screenFrame.width - windowSize.width) / 2
+            let y = screenFrame.origin.y + (screenFrame.height - windowSize.height) / 2
+            window.setFrameOrigin(NSPoint(x: x, y: y))
         }
         
         NSApp.activate(ignoringOtherApps: true)

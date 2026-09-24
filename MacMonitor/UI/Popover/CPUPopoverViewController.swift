@@ -33,10 +33,89 @@ public final class CPUPopoverViewController: NSViewController {
         setupLayout()
     }
     
+    private var lastStats: CPUStats?
+    
     public override func viewWillAppear() {
         super.viewWillAppear()
         scrollView.contentView.scroll(to: .zero)
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        if let last = lastStats {
+            updateVisibleDetails(stats: last)
+        }
+    }
+    
+    public func update(stats: CPUStats) {
+        lastStats = stats
+        let theme = AppPreferences.shared.colorTheme
+        let sev = Severity.level(stats.totalUsage, warning: 70, danger: 90)
+        let coreLoads = stats.perCoreLoads.map(\.totalUsagePercentage)
+        if coreLoads.isEmpty {
+            graphView.series1Color = sev.color(normal: theme.primaryColor)
+            graphView.push(val1: stats.totalUsage)
+        } else {
+            graphView.multiColors = theme.seriesColors(count: coreLoads.count)
+            graphView.pushMulti(coreLoads)
+        }
+        
+        // Skip expensive view hierarchy layout & process table rebuilding when popover is closed
+        guard isViewLoaded && view.window != nil else { return }
+        updateVisibleDetails(stats: stats)
+    }
+    
+    private func updateVisibleDetails(stats: CPUStats) {
+        let sev = Severity.level(stats.totalUsage, warning: 70, danger: 90)
+        breakdownCard.setBadge(String(format: "%.1f%%", stats.totalUsage), tint: sev.textTint)
+        
+        let loads = stats.perCoreLoads
+        if !loads.isEmpty {
+            let avgUser = loads.reduce(0.0) { $0 + $1.userPercentage } / Double(loads.count)
+            let avgSys = loads.reduce(0.0) { $0 + $1.systemPercentage } / Double(loads.count)
+            let avgIdle = loads.reduce(0.0) { $0 + $1.idlePercentage } / Double(loads.count)
+            
+            userRow.setValue(String(format: "%.1f%%", avgUser))
+            sysRow.setValue(String(format: "%.1f%%", avgSys))
+            idleRow.setValue(String(format: "%.1f%%", avgIdle))
+        }
+        
+        modelRow.setValue(stats.cpuModel)
+        
+        // Thermal State
+        let thermal = ProcessInfo.processInfo.thermalState
+        let thermalStr: String
+        switch thermal {
+        case .nominal:  thermalStr = "Nominal (Cool)"
+        case .fair:     thermalStr = "Fair (Warm)"
+        case .serious:  thermalStr = "Serious (Throttling)"
+        case .critical: thermalStr = "Critical (High Heat)"
+        @unknown default: thermalStr = "Normal"
+        }
+        thermalRow.setValue(thermalStr)
+        
+        let la = stats.loadAverages
+        loadRow.setValue(String(format: "%.2f, %.2f, %.2f", la[0], la[1], la[2]))
+        uptimeRow.setValue(stats.formattedUptime)
+        
+        // Update top processes table with icons
+        procTableView.update(processes: stats.topProcesses)
+        
+        // Cores
+        if coreBarViews.count != loads.count {
+            coresStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+            coreBarViews.removeAll()
+            
+            for load in loads {
+                let bar = CoreMiniBarView(coreIndex: load.coreIndex)
+                coreBarViews.append(bar)
+                coresStack.addArrangedSubview(bar)
+                bar.widthAnchor.constraint(equalTo: coresStack.widthAnchor).isActive = true
+            }
+        }
+        
+        for (i, load) in loads.enumerated() {
+            if i < coreBarViews.count {
+                coreBarViews[i].update(load: load)
+            }
+        }
     }
     
     private func setupLayout() {
@@ -107,71 +186,6 @@ public final class CPUPopoverViewController: NSViewController {
     
     @objc private func openActivityMonitor() {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
-    }
-    
-    public func update(stats: CPUStats) {
-        let theme = AppPreferences.shared.colorTheme
-        let sev = Severity.level(stats.totalUsage, warning: 70, danger: 90)
-        let coreLoads = stats.perCoreLoads.map(\.totalUsagePercentage)
-        if coreLoads.isEmpty {
-            graphView.series1Color = sev.color(normal: theme.primaryColor)
-            graphView.push(val1: stats.totalUsage)
-        } else {
-            graphView.multiColors = theme.seriesColors(count: coreLoads.count)
-            graphView.pushMulti(coreLoads)
-        }
-        breakdownCard.setBadge(String(format: "%.1f%%", stats.totalUsage), tint: sev.textTint)
-        
-        let loads = stats.perCoreLoads
-        if !loads.isEmpty {
-            let avgUser = loads.reduce(0.0) { $0 + $1.userPercentage } / Double(loads.count)
-            let avgSys = loads.reduce(0.0) { $0 + $1.systemPercentage } / Double(loads.count)
-            let avgIdle = loads.reduce(0.0) { $0 + $1.idlePercentage } / Double(loads.count)
-            
-            userRow.setValue(String(format: "%.1f%%", avgUser))
-            sysRow.setValue(String(format: "%.1f%%", avgSys))
-            idleRow.setValue(String(format: "%.1f%%", avgIdle))
-        }
-        
-        modelRow.setValue(stats.cpuModel)
-        
-        // Thermal State
-        let thermal = ProcessInfo.processInfo.thermalState
-        let thermalStr: String
-        switch thermal {
-        case .nominal:  thermalStr = "Nominal (Cool)"
-        case .fair:     thermalStr = "Fair (Warm)"
-        case .serious:  thermalStr = "Serious (Throttling)"
-        case .critical: thermalStr = "Critical (High Heat)"
-        @unknown default: thermalStr = "Normal"
-        }
-        thermalRow.setValue(thermalStr)
-        
-        let la = stats.loadAverages
-        loadRow.setValue(String(format: "%.2f, %.2f, %.2f", la[0], la[1], la[2]))
-        uptimeRow.setValue(stats.formattedUptime)
-        
-        // Update top processes table with icons
-        procTableView.update(processes: stats.topProcesses)
-        
-        // Cores
-        if coreBarViews.count != loads.count {
-            coresStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-            coreBarViews.removeAll()
-            
-            for load in loads {
-                let bar = CoreMiniBarView(coreIndex: load.coreIndex)
-                coreBarViews.append(bar)
-                coresStack.addArrangedSubview(bar)
-                bar.widthAnchor.constraint(equalTo: coresStack.widthAnchor).isActive = true
-            }
-        }
-        
-        for (i, load) in loads.enumerated() {
-            if i < coreBarViews.count {
-                coreBarViews[i].update(load: load)
-            }
-        }
     }
 }
 
