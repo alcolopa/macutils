@@ -83,6 +83,7 @@ public final class ClipboardStatusItemController: NSObject, NSMenuDelegate {
         let settings = NSMenuItem(title: "Clipboard Settings...", action: #selector(openSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+        if let update = MenuActionsHandler.shared.updateItem() { menu.addItem(.separator()); menu.addItem(update) }
         let quit = NSMenuItem(title: "Quit MacUtils", action: #selector(MenuActionsHandler.quitApp), keyEquivalent: "q")
         quit.target = MenuActionsHandler.shared
         menu.addItem(quit)

@@ -242,6 +242,7 @@ public final class AppPreferences: @unchecked Sendable {
     private let keyShowCaffeinate = "showCaffeinate"
     private let keyCaffeinateKeepDisplayAwake = "caffeinateKeepDisplayAwake"
     private let keyClipboardEnabled = "clipboardEnabled"
+    private let keyAutoCheckUpdates = "autoCheckUpdates"
     private let keyShowClipboardIcon = "showClipboardIcon"
     private let keyClipboardMaxItems = "clipboardMaxItems"
     private let keyClipboardPaused = "clipboardPaused"
@@ -271,6 +272,7 @@ public final class AppPreferences: @unchecked Sendable {
             keyShowCaffeinate: true,
             keyCaffeinateKeepDisplayAwake: true,
             keyClipboardEnabled: true,
+            keyAutoCheckUpdates: true,
             keyShowClipboardIcon: true,
             keyClipboardMaxItems: 30,
             keyClipboardPaused: false,
@@ -345,6 +347,11 @@ public final class AppPreferences: @unchecked Sendable {
     public var clipboardEnabled: Bool {
         get { defaults.bool(forKey: keyClipboardEnabled) }
         set { defaults.set(newValue, forKey: keyClipboardEnabled); notifyChange() }
+    }
+    
+    public var autoCheckUpdates: Bool {
+        get { defaults.bool(forKey: keyAutoCheckUpdates) }
+        set { defaults.set(newValue, forKey: keyAutoCheckUpdates) }
     }
     
     public var showClipboardIcon: Bool {

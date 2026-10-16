@@ -36,6 +36,8 @@ public final class PreferencesMenu: NSObject {
         
         menu.addItem(NSMenuItem.separator())
         
+        if let update = MenuActionsHandler.shared.updateItem() { menu.addItem(update); menu.addItem(NSMenuItem.separator()) }
+        
         let quitItem = NSMenuItem(title: "Quit MacUtils", action: #selector(MenuActionsHandler.quitApp), keyEquivalent: "q")
         quitItem.target = MenuActionsHandler.shared
         menu.addItem(quitItem)
@@ -60,6 +62,18 @@ public final class MenuActionsHandler: NSObject {
     
     @objc public func openActivityMonitor() {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+    }
+    
+    /// "Update to X…" item, only when a newer version was found.
+    public func updateItem() -> NSMenuItem? {
+        guard let release = UpdateManager.shared.availableRelease else { return nil }
+        let item = NSMenuItem(title: "Update to \(release.version)…", action: #selector(openUpdates), keyEquivalent: "")
+        item.target = self
+        return item
+    }
+    
+    @objc public func openUpdates() {
+        PreferencesWindowController.shared.showPreferences(selecting: .general)
     }
     
     @objc public func quitApp() {

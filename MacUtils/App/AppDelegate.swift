@@ -93,6 +93,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         poller.start()
         
         setupMainMenu()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { UpdateManager.shared.checkInBackgroundIfDue() }
         
         NotificationCenter.default.addObserver(forName: NSPopover.willShowNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.lastPopoverShown = Date() }
