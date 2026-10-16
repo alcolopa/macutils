@@ -35,7 +35,25 @@ cp MacUtils/App/Info.plist "$APP/Contents/Info.plist"
                         -c "Add :CFBundleIconFile string AppIcon" \
                         -c "Set :CFBundleShortVersionString $VERSION" \
                         -c "Set :CFBundleVersion $BUILD" "$APP/Contents/Info.plist"
-codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+# A stable signing identity (scripts/setup_signing.sh) keeps the Accessibility permission across rebuilds.
+# Without one the app is ad-hoc signed, and macOS forgets the permission after every build.
+# Look in the login keychain explicitly (CI uses its own keychain on the search list).
+IDENTITY=""
+KEYCHAIN_ARGS=()
+for candidate in "MacUtils Release Signing" "MacUtils Local Signing"; do
+  if security find-certificate -c "$candidate" >/dev/null 2>&1; then
+    IDENTITY="$candidate"; break
+  elif security find-certificate -c "$candidate" "$HOME/Library/Keychains/login.keychain-db" >/dev/null 2>&1; then
+    IDENTITY="$candidate"; KEYCHAIN_ARGS=(--keychain "$HOME/Library/Keychains/login.keychain-db"); break
+  fi
+done
+if [ "${SIGN_IDENTITY:-}" = "adhoc" ] || [ -z "$IDENTITY" ]; then
+  codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+  echo "Signed ad-hoc (run scripts/setup_signing.sh once to keep permissions across rebuilds)"
+else
+  codesign --force --sign "$IDENTITY" ${KEYCHAIN_ARGS[@]+"${KEYCHAIN_ARGS[@]}"} "$APP"
+  echo "Signed with \"$IDENTITY\""
+fi
 
 mkdir -p dist
 ZIP="dist/MacUtils-$VERSION.zip"

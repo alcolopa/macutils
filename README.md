@@ -31,7 +31,10 @@ Requires macOS 13+ and Swift 6.
 swift run MacUtils          # run directly
 ./scripts/build_app.sh        # build MacUtils.app + dist/MacUtils-<version>.zip
 ./scripts/build_app.sh 1.2.0  # override the version
+./scripts/setup_signing.sh    # once: sign local builds with a stable identity
 ```
+
+Run `scripts/setup_signing.sh` once. Without it, local builds are ad-hoc signed and macOS asks for the Accessibility permission again after every rebuild.
 
 ## Releasing
 
