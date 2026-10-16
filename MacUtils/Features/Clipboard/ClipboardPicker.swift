@@ -1,31 +1,29 @@
 import AppKit
-import ApplicationServices
+import Carbon.HIToolbox
 
 /// Global ⌘⇧V picker. Holding ⌘⇧ keeps the panel open, each press of V moves to the next item, and
 /// letting go of ⌘ or ⇧ pastes the highlighted one into the frontmost app.
 ///
-/// Uses a CGEventTap so the keystroke can be swallowed; that needs the Accessibility permission, which
-/// is also what lets us post the synthetic ⌘V.
+/// The shortcut is a Carbon hot key, so showing the picker needs no special permission. Only the final
+/// ⌘V keystroke needs Accessibility access; without it the item is just placed on the clipboard.
 @MainActor
 public final class ClipboardPicker {
     public static let shared = ClipboardPicker()
     
-    private static let keyV: Int64 = 9
-    private static let keyEscape: Int64 = 53
-    private static let keyDown: Int64 = 125
-    private static let keyUp: Int64 = 126
+    private enum HotKey: UInt32 { case open = 1, escape, up, down }
     
-    private var tap: CFMachPort?
-    private var tapSource: CFRunLoopSource?
-    private var retryTimer: Timer?
+    private var handlerRef: EventHandlerRef?
+    private var openKey: EventHotKeyRef?
+    private var modalKeys: [EventHotKeyRef] = []
     private var flagsTimer: Timer?
-    private var didPrompt = false
     
     private let panel = ClipboardPanel()
-    private var snapshot: [String] = []
+    private var snapshot: [ClipboardItem] = []
     private var selected = 0
     private var isShowing = false
-    private var swallowedVDown = false
+    
+    /// False when another app already owns ⌘⇧V.
+    public private(set) var isShortcutActive = false
     
     private init() {
         panel.onRowClicked = { [weak self] index in
@@ -36,107 +34,58 @@ public final class ClipboardPicker {
     
     public func start() {
         ClipboardStore.shared.start()
-        guard tap == nil, retryTimer == nil else { return }
-        if !installTap() {
-            if !didPrompt {
-                didPrompt = true
-                AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
-            }
-            // Keep trying so the shortcut starts working as soon as the permission is granted.
-            retryTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    if self.installTap() { self.retryTimer?.invalidate(); self.retryTimer = nil }
-                }
-            }
-        }
+        installHandlerIfNeeded()
+        guard openKey == nil else { return }
+        openKey = register(keyCode: kVK_ANSI_V, id: .open)
+        isShortcutActive = openKey != nil
     }
     
     public func stop() {
-        retryTimer?.invalidate()
-        retryTimer = nil
-        if isShowing { cancel() }
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let tapSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), tapSource, .commonModes) }
-        tap = nil
-        tapSource = nil
+        if isShowing { hide() }
+        if let openKey { UnregisterEventHotKey(openKey) }
+        openKey = nil
+        isShortcutActive = false
         ClipboardStore.shared.stop()
     }
     
-    public var hasAccessibilityAccess: Bool { AXIsProcessTrusted() }
-    
-    private func installTap() -> Bool {
-        let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
-        guard let port = CGEvent.tapCreate(
-            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-            eventsOfInterest: CGEventMask(mask), callback: clipboardTapCallback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: port, enable: true)
-        tap = port
-        tapSource = source
-        return true
+    private func installHandlerIfNeeded() {
+        guard handlerRef == nil else { return }
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), clipboardHotKeyHandler, 1, &spec,
+                            Unmanaged.passUnretained(self).toOpaque(), &handlerRef)
     }
     
-    /// Returns true when the event must be swallowed.
-    fileprivate func handle(type: CGEventType, keyCode: Int64, flags: CGEventFlags, isRepeat: Bool) -> Bool {
-        switch type {
-        case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            return false
-            
-        case .flagsChanged:
-            if isShowing && !Self.comboHeld(flags) { commit() }
-            return false
-            
-        case .keyDown:
-            if isShowing {
-                switch keyCode {
-                case Self.keyV:
-                    swallowedVDown = true
-                    if !isRepeat { move(by: 1) }
-                    return true
-                case Self.keyDown: move(by: 1); return true
-                case Self.keyUp: move(by: -1); return true
-                case Self.keyEscape: cancel(); return true
-                default: return false
-                }
-            }
-            let relevant = flags.intersection([.maskCommand, .maskShift, .maskAlternate, .maskControl])
-            if keyCode == Self.keyV, relevant == [.maskCommand, .maskShift] {
-                swallowedVDown = true
-                if !isRepeat { show() }
-                return true
-            }
-            return false
-            
-        case .keyUp:
-            if keyCode == Self.keyV, swallowedVDown {
-                swallowedVDown = false
-                return true
-            }
-            return false
-            
-        default:
-            return false
+    private func register(keyCode: Int, id: HotKey) -> EventHotKeyRef? {
+        var ref: EventHotKeyRef?
+        let hotKeyID = EventHotKeyID(signature: OSType(0x4D555449), id: id.rawValue) // 'MUTI'
+        let status = RegisterEventHotKey(UInt32(keyCode), UInt32(cmdKey | shiftKey), hotKeyID,
+                                         GetApplicationEventTarget(), 0, &ref)
+        return status == noErr ? ref : nil
+    }
+    
+    fileprivate func hotKeyPressed(_ rawID: UInt32) {
+        guard let key = HotKey(rawValue: rawID) else { return }
+        switch key {
+        case .open: isShowing ? move(by: 1) : show()
+        case .escape: hide()
+        case .up: move(by: -1)
+        case .down: move(by: 1)
         }
-    }
-    
-    private static func comboHeld(_ flags: CGEventFlags) -> Bool {
-        flags.contains(.maskCommand) && flags.contains(.maskShift)
     }
     
     private func show() {
         snapshot = ClipboardStore.shared.items
         selected = 0
         isShowing = true
+        // While the picker is up ⌘⇧ is held, so these only exist for the duration.
+        modalKeys = [(kVK_Escape, HotKey.escape), (kVK_UpArrow, .up), (kVK_DownArrow, .down)]
+            .compactMap { register(keyCode: $0.0, id: $0.1) }
         panel.present(items: snapshot, selected: selected)
-        // Safety net in case a modifier release is ever missed by the tap.
-        flagsTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        flagsTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isShowing else { return }
-                if !Self.comboHeld(CGEventSource.flagsState(.combinedSessionState)) { self.commit() }
+                let flags = NSEvent.modifierFlags
+                if !(flags.contains(.command) && flags.contains(.shift)) { self.commit() }
             }
         }
     }
@@ -151,38 +100,30 @@ public final class ClipboardPicker {
         isShowing = false
         flagsTimer?.invalidate()
         flagsTimer = nil
+        modalKeys.forEach { UnregisterEventHotKey($0) }
+        modalKeys.removeAll()
         panel.orderOut(nil)
     }
     
-    private func cancel() { hide() }
-    
     private func commit() {
         guard isShowing else { return }
-        let text = selected < snapshot.count ? snapshot[selected] : nil
+        let item = selected < snapshot.count ? snapshot[selected] : nil
         hide()
-        guard let text else { return }
-        ClipboardStore.shared.writeToPasteboard(text)
-        // Let the panel disappear and modifiers settle before sending ⌘V to the frontmost app.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { Self.postPaste() }
-    }
-    
-    private static func postPaste() {
-        let source = CGEventSource(stateID: .hidSystemState)
-        for keyDown in [true, false] {
-            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(keyV), keyDown: keyDown)
-            event?.flags = .maskCommand
-            event?.post(tap: .cghidEventTap)
+        guard let item else { return }
+        if !PasteService.paste(item) {
+            panel.showMessage("Copied. Press ⌘V to paste.", detail: "Allow MacUtils in Privacy & Security → Accessibility to paste automatically.")
         }
     }
 }
 
-private func clipboardTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
-    guard let refcon else { return Unmanaged.passUnretained(event) }
-    let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-    let flags = event.flags
-    let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-    let picker = Unmanaged<ClipboardPicker>.fromOpaque(refcon).takeUnretainedValue()
-    // The tap is attached to the main run loop, so this always runs on the main thread.
-    let swallow = MainActor.assumeIsolated { picker.handle(type: type, keyCode: keyCode, flags: flags, isRepeat: isRepeat) }
-    return swallow ? nil : Unmanaged.passUnretained(event)
+private func clipboardHotKeyHandler(_ next: EventHandlerCallRef?, _ event: EventRef?, _ userData: UnsafeMutableRawPointer?) -> OSStatus {
+    guard let userData, let event else { return OSStatus(eventNotHandledErr) }
+    var hotKeyID = EventHotKeyID()
+    let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                   nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
+    guard status == noErr else { return status }
+    let picker = Unmanaged<ClipboardPicker>.fromOpaque(userData).takeUnretainedValue()
+    // Hot key events are delivered on the main thread.
+    MainActor.assumeIsolated { picker.hotKeyPressed(hotKeyID.id) }
+    return noErr
 }

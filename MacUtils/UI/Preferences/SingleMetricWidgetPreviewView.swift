@@ -213,9 +213,9 @@ public final class SingleMetricWidgetPreviewView: NSView {
     
     // MARK: - Static Sample Factory
     
-    public static func makeSampleMiniView(metric: MetricType, style: MetricDisplayStyle) -> NSView {
+    public static func makeSampleMiniView(metric: MetricType, style: MetricDisplayStyle, theme themeOverride: ColorTheme? = nil) -> NSView {
         let prefs = AppPreferences.shared
-        let theme = prefs.colorTheme
+        let theme = themeOverride ?? prefs.colorTheme
         
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false

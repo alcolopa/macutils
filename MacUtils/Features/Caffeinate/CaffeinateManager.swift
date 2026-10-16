@@ -9,13 +9,26 @@ public final class CaffeinateManager {
     public private(set) var isActive = false
     /// When a timed session ends; nil while off or running indefinitely.
     public private(set) var endDate: Date?
-    public var onChange: (() -> Void)?
+    public static let didChange = Notification.Name("MacUtilsCaffeinateDidChange")
+    
+    /// Duration choices shown in menus and settings; nil means until turned off.
+    public static let presets: [(title: String, seconds: TimeInterval?)] = [
+        ("15 minutes", 15 * 60), ("30 minutes", 30 * 60), ("1 hour", 3600),
+        ("2 hours", 2 * 3600), ("4 hours", 4 * 3600), ("8 hours", 8 * 3600),
+        ("Until I turn it off", nil)
+    ]
     
     private var systemAssertion = IOPMAssertionID(0)
     private var displayAssertion = IOPMAssertionID(0)
     private var timer: Timer?
     
     private init() {}
+    
+    /// Starts a session using the duration chosen in settings.
+    public func startDefault() {
+        let d = AppPreferences.shared.caffeinateDefaultDuration
+        start(duration: d > 0 ? d : nil, keepDisplayAwake: AppPreferences.shared.caffeinateKeepDisplayAwake)
+    }
     
     /// Starts (or restarts) a session. `duration == nil` keeps the Mac awake until stopped.
     public func start(duration: TimeInterval?, keepDisplayAwake: Bool) {
@@ -39,7 +52,7 @@ public final class CaffeinateManager {
                 MainActor.assumeIsolated { self?.stop() }
             }
         }
-        onChange?()
+        NotificationCenter.default.post(name: Self.didChange, object: nil)
     }
     
     public func stop() { stop(notify: true) }
@@ -52,6 +65,6 @@ public final class CaffeinateManager {
         let wasActive = isActive
         isActive = false
         endDate = nil
-        if notify && wasActive { onChange?() }
+        if notify && wasActive { NotificationCenter.default.post(name: Self.didChange, object: nil) }
     }
 }

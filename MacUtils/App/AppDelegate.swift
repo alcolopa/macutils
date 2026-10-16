@@ -9,6 +9,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var tempController: TemperatureStatusItemController?
     private var weatherController: WeatherStatusItemController?
     private var caffeinateController: CaffeinateStatusItemController?
+    private var clipboardController: ClipboardStatusItemController?
     
     /// Fixed pool of NSStatusItems corresponding to slot positions in the status bar.
     /// By allocating them once and never removing/recreating them, reordering is completely
@@ -16,6 +17,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemSlots: [NSStatusItem] = []
     
     private var poller: AdaptivePoller?
+    /// When a popover last opened. Activation and Space notifications that arrive right after a click
+    /// (e.g. clicking a monitor on a different display than the Settings window) must not close it.
+    private var lastPopoverShown = Date.distantPast
     
     /// Bundle.module traps if the resource bundle isn't at the .app root, so look in the
     /// places it can actually live (Contents/Resources in the app, next to the binary for `swift run`).
@@ -44,6 +48,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupControllersAndSlots()
         caffeinateController = CaffeinateStatusItemController()
+        clipboardController = ClipboardStatusItemController()
         syncClipboardManager()
         
         var appliedInterval = prefs.passiveInterval
@@ -59,6 +64,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.refreshControllers()
             self?.caffeinateController?.syncVisibility()
             self?.syncClipboardManager()
+            self?.clipboardController?.syncVisibility()
         }
         
         prefs.onOrderChanged = { [weak self] in
@@ -88,6 +94,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupMainMenu()
         
+        NotificationCenter.default.addObserver(forName: NSPopover.willShowNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.lastPopoverShown = Date() }
+        }
+        
         // Close any open popover when the user switches Spaces, so it can be reopened on the new one.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
@@ -98,7 +108,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Close open popovers when another application becomes active or when this app loses focus.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
+            // Clicking a monitor while Settings is open activates MacUtils itself; that must not close the popover it just opened.
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard app?.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
             MainActor.assumeIsolated { self?.closeAllPopovers() }
         }
 
@@ -142,6 +155,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Cmd+Q only closes the front window (e.g. Preferences); the app keeps running in the menu bar.
         // Quitting is still available from the status item menu.
         appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         appMenuItem.submenu = appMenu
         
         let editMenuItem = NSMenuItem()
@@ -235,6 +249,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func closeAllPopovers() {
+        guard Date().timeIntervalSince(lastPopoverShown) > 0.8 else { return }
         cpuController?.closePopover()
         memoryController?.closePopover()
         diskController?.closePopover()
@@ -268,6 +283,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         CaffeinateManager.shared.stop()
         ClipboardPicker.shared.stop()
         caffeinateController?.removeFromStatusBar()
+        clipboardController?.removeFromStatusBar()
         for slot in statusItemSlots {
             NSStatusBar.system.removeStatusItem(slot)
         }

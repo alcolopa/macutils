@@ -385,6 +385,6 @@ public final class WeatherPopoverViewController: NSViewController {
     
     @objc private func onOpenSettings() {
         view.window?.performClose(nil)
-        PreferencesWindowController.shared.showPreferences()
+        PreferencesWindowController.shared.showPreferences(selecting: .weather)
     }
 }

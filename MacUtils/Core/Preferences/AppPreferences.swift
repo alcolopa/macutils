@@ -242,6 +242,11 @@ public final class AppPreferences: @unchecked Sendable {
     private let keyShowCaffeinate = "showCaffeinate"
     private let keyCaffeinateKeepDisplayAwake = "caffeinateKeepDisplayAwake"
     private let keyClipboardEnabled = "clipboardEnabled"
+    private let keyShowClipboardIcon = "showClipboardIcon"
+    private let keyClipboardMaxItems = "clipboardMaxItems"
+    private let keyClipboardPaused = "clipboardPaused"
+    private let keyClipboardCaptureRich = "clipboardCaptureRich"
+    private let keyCaffeinateDefaultDuration = "caffeinateDefaultDuration"
     
     public var onPreferencesChanged: (@Sendable @MainActor () -> Void)?
     public var onOrderChanged: (@Sendable @MainActor () -> Void)?
@@ -265,7 +270,12 @@ public final class AppPreferences: @unchecked Sendable {
             keyTemperatureUnit: TemperatureUnit.celsius.rawValue,
             keyShowCaffeinate: true,
             keyCaffeinateKeepDisplayAwake: true,
-            keyClipboardEnabled: true
+            keyClipboardEnabled: true,
+            keyShowClipboardIcon: true,
+            keyClipboardMaxItems: 30,
+            keyClipboardPaused: false,
+            keyClipboardCaptureRich: true,
+            keyCaffeinateDefaultDuration: 0.0
         ])
     }
     
@@ -335,6 +345,33 @@ public final class AppPreferences: @unchecked Sendable {
     public var clipboardEnabled: Bool {
         get { defaults.bool(forKey: keyClipboardEnabled) }
         set { defaults.set(newValue, forKey: keyClipboardEnabled); notifyChange() }
+    }
+    
+    public var showClipboardIcon: Bool {
+        get { defaults.bool(forKey: keyShowClipboardIcon) }
+        set { defaults.set(newValue, forKey: keyShowClipboardIcon); notifyChange() }
+    }
+    
+    public var clipboardMaxItems: Int {
+        get { min(max(defaults.integer(forKey: keyClipboardMaxItems), 5), 100) }
+        set { defaults.set(newValue, forKey: keyClipboardMaxItems); notifyChange() }
+    }
+    
+    public var clipboardPaused: Bool {
+        get { defaults.bool(forKey: keyClipboardPaused) }
+        set { defaults.set(newValue, forKey: keyClipboardPaused); notifyChange() }
+    }
+    
+    /// Also remember images and copied files, not just text.
+    public var clipboardCaptureRich: Bool {
+        get { defaults.bool(forKey: keyClipboardCaptureRich) }
+        set { defaults.set(newValue, forKey: keyClipboardCaptureRich); notifyChange() }
+    }
+    
+    /// Seconds a click on the Caffeinate icon keeps the Mac awake; 0 means until turned off.
+    public var caffeinateDefaultDuration: TimeInterval {
+        get { defaults.double(forKey: keyCaffeinateDefaultDuration) }
+        set { defaults.set(newValue, forKey: keyCaffeinateDefaultDuration); notifyChange() }
     }
     
     public func isMetricVisible(_ metric: MetricType) -> Bool {

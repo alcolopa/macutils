@@ -1,23 +1,24 @@
 import AppKit
 
+/// Menu bar cup. Click toggles Caffeinate using the default duration; right-click (or ⌃-click) opens the menu.
 @MainActor
 public final class CaffeinateStatusItemController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let manager = CaffeinateManager.shared
-    
-    private static let durations: [(String, TimeInterval?)] = [
-        ("15 minutes", 15 * 60), ("30 minutes", 30 * 60), ("1 hour", 3600),
-        ("2 hours", 2 * 3600), ("4 hours", 4 * 3600), ("8 hours", 8 * 3600),
-        ("Until I turn it off", nil)
-    ]
+    private var countdownTimer: Timer?
     
     public override init() {
         super.init()
-        let menu = NSMenu()
-        menu.delegate = self
-        statusItem.menu = menu
-        manager.onChange = { [weak self] in self?.refreshIcon() }
-        refreshIcon()
+        if let button = statusItem.button {
+            button.target = self
+            button.action = #selector(clicked(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.imagePosition = .imageLeft
+        }
+        NotificationCenter.default.addObserver(forName: CaffeinateManager.didChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+        refresh()
         syncVisibility()
     }
     
@@ -29,13 +30,50 @@ public final class CaffeinateStatusItemController: NSObject, NSMenuDelegate {
         NSStatusBar.system.removeStatusItem(statusItem)
     }
     
-    private func refreshIcon() {
+    private func refresh() {
         let active = manager.isActive
-        let name = active ? "cup.and.saucer.fill" : "cup.and.saucer"
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "Caffeinate")
+        let image = NSImage(systemSymbolName: active ? "cup.and.saucer.fill" : "cup.and.saucer", accessibilityDescription: "Caffeinate")
         image?.isTemplate = true
         statusItem.button?.image = image
-        statusItem.button?.toolTip = active ? "Caffeinate: keeping your Mac awake" : "Caffeinate: off"
+        statusItem.button?.toolTip = active
+            ? "Caffeinate is on. Click to turn off, right-click for options."
+            : "Caffeinate is off. Click to keep your Mac awake, right-click for options."
+        updateTitle()
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        if active, manager.endDate != nil {
+            countdownTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateTitle() }
+            }
+        }
+    }
+    
+    private func updateTitle() {
+        guard manager.isActive, let end = manager.endDate else {
+            statusItem.button?.title = ""
+            return
+        }
+        let minutes = max(1, Int((end.timeIntervalSinceNow / 60).rounded(.up)))
+        let text = minutes >= 60 ? "\(minutes / 60)h\(minutes % 60 == 0 ? "" : " \(minutes % 60)m")" : "\(minutes)m"
+        statusItem.button?.attributedTitle = NSAttributedString(string: " " + text, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        ])
+    }
+    
+    @objc private func clicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent
+        let wantsMenu = event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true
+        if wantsMenu {
+            let menu = NSMenu()
+            menu.delegate = self
+            statusItem.menu = menu
+            sender.performClick(nil)
+            statusItem.menu = nil
+        } else if manager.isActive {
+            manager.stop()
+        } else {
+            manager.startDefault()
+        }
     }
     
     // MARK: - NSMenuDelegate
@@ -49,49 +87,53 @@ public final class CaffeinateStatusItemController: NSObject, NSMenuDelegate {
         } else if let end = manager.endDate {
             let f = DateFormatter()
             f.timeStyle = .short
-            status = "Keeping your Mac awake until \(f.string(from: end))"
+            status = "Awake until \(f.string(from: end))"
         } else {
             status = "Keeping your Mac awake"
         }
         let header = NSMenuItem(title: status, action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
-        menu.addItem(.separator())
         
         if manager.isActive {
             let off = NSMenuItem(title: "Turn Off", action: #selector(turnOff), keyEquivalent: "")
             off.target = self
             menu.addItem(off)
-            menu.addItem(.separator())
         }
+        menu.addItem(.separator())
         
-        let sub = NSMenuItem(title: manager.isActive ? "Restart for…" : "Keep Awake For…", action: nil, keyEquivalent: "")
-        let subMenu = NSMenu()
-        for (index, entry) in Self.durations.enumerated() {
-            let item = NSMenuItem(title: entry.0, action: #selector(startSession(_:)), keyEquivalent: "")
+        let caption = NSMenuItem(title: manager.isActive ? "Restart for" : "Keep awake for", action: nil, keyEquivalent: "")
+        caption.isEnabled = false
+        menu.addItem(caption)
+        for (index, preset) in CaffeinateManager.presets.enumerated() {
+            let item = NSMenuItem(title: preset.title, action: #selector(startSession(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
-            subMenu.addItem(item)
+            item.indentationLevel = 1
+            menu.addItem(item)
         }
-        sub.submenu = subMenu
-        menu.addItem(sub)
         
+        menu.addItem(.separator())
         let display = NSMenuItem(title: "Also Keep Display Awake", action: #selector(toggleDisplay), keyEquivalent: "")
         display.target = self
         display.state = AppPreferences.shared.caffeinateKeepDisplayAwake ? .on : .off
         menu.addItem(display)
         
         menu.addItem(.separator())
-        let settings = NSMenuItem(title: "Settings...", action: #selector(MenuActionsHandler.openSettingsWindow), keyEquivalent: ",")
-        settings.target = MenuActionsHandler.shared
+        let settings = NSMenuItem(title: "Caffeinate Settings...", action: #selector(openSettings), keyEquivalent: "")
+        settings.target = self
         menu.addItem(settings)
         let quit = NSMenuItem(title: "Quit MacUtils", action: #selector(MenuActionsHandler.quitApp), keyEquivalent: "q")
         quit.target = MenuActionsHandler.shared
         menu.addItem(quit)
     }
     
+    @objc private func openSettings() {
+        PreferencesWindowController.shared.showPreferences(selecting: .caffeinate)
+    }
+    
     @objc private func startSession(_ sender: NSMenuItem) {
-        let duration = Self.durations[sender.tag].1
+        let duration = CaffeinateManager.presets[sender.tag].seconds
         manager.start(duration: duration, keepDisplayAwake: AppPreferences.shared.caffeinateKeepDisplayAwake)
     }
     
