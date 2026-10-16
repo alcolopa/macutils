@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+- Renamed the app from MacMonitor to MacUtils, with a new two-colour logo and a new website
+- New: Caffeinate menu bar item that keeps your Mac (and optionally the display) awake for a chosen time or indefinitely
+- New: clipboard manager. Hold ⌘⇧ and press V to open a picker in the middle of the screen, press V again to change the selection, release to paste
+- Settings → General has a new Utilities section for both tools
+
 ## 1.0.1
 
 - Fix: the downloaded release crashed at launch ("could not load resource bundle"); it only worked on the machine that built it

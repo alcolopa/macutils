@@ -7,7 +7,7 @@ DerivedData/
 *.o
 
 # Build outputs
-MacMonitor.app/
+MacUtils.app/
 dist/
 
 # macOS / editors

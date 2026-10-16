@@ -2,32 +2,33 @@
 import PackageDescription
 
 let package = Package(
-    name: "MacMonitor",
+    name: "MacUtils",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "MacMonitor", targets: ["MacMonitor"])
+        .executable(name: "MacUtils", targets: ["MacUtils"])
     ],
     targets: [
         .executableTarget(
-            name: "MacMonitor",
-            path: "MacMonitor",
+            name: "MacUtils",
+            path: "MacUtils",
             exclude: ["Tests", "App/Info.plist"],
             sources: [
                 "App",
                 "Core",
                 "Driver",
+                "Features",
                 "UI"
             ],
             resources: [
-                .copy("Resources/AppIcon.jpg")
+                .copy("Resources/AppIcon.png")
             ]
         ),
         .testTarget(
-            name: "MacMonitorTests",
-            dependencies: ["MacMonitor"],
-            path: "MacMonitor/Tests"
+            name: "MacUtilsTests",
+            dependencies: ["MacUtils"],
+            path: "MacUtils/Tests"
         )
     ]
 )

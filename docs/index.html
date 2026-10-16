@@ -3,55 +3,59 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MacMonitor – Menu bar system monitor for macOS</title>
-<meta name="description" content="MacMonitor is a free, open-source menu bar system monitor for macOS: CPU, memory, disk, network, battery, temperatures, displays and weather.">
-<meta name="theme-color" content="#0b0d12">
-<meta property="og:title" content="MacMonitor – Menu bar system monitor for macOS">
-<meta property="og:description" content="Free, open-source CPU, memory, disk, network, battery, temperature and weather widgets for your Mac menu bar.">
+<title>MacUtils – Small, sharp utilities for your Mac menu bar</title>
+<meta name="description" content="MacUtils is a free, open-source menu bar toolkit for macOS: system monitor, Caffeinate to keep your Mac awake, and a clipboard manager you summon with ⌘⇧V.">
+<meta name="theme-color" content="#2F6BFF">
+<meta property="og:title" content="MacUtils – Small, sharp utilities for your Mac menu bar">
+<meta property="og:description" content="System monitor, Caffeinate and a clipboard manager in one free, open-source menu bar app.">
 <meta property="og:type" content="website">
-<link rel="icon" href="icon.jpg">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <style>
-:root{--bg:#0b0d12;--card:#151922;--line:#252b38;--text:#eef1f6;--muted:#9aa3b5;--accent:#5b8cff;--accent2:#8b5bff;--ok:#3ddc97}
-@media (prefers-color-scheme:light){:root{--bg:#f6f7fb;--card:#fff;--line:#e2e6ee;--text:#12151c;--muted:#5b6475}}
+:root{--bg:#ffffff;--ink:#0d1220;--muted:#59627a;--line:#dfe5f3;--tint:#eef3ff;--blue:#2F6BFF}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1220;--ink:#ffffff;--muted:#a3adc6;--line:#222b45;--tint:#151d34}}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-a{color:var(--accent)}
-.wrap{max-width:1000px;margin:0 auto;padding:0 20px}
-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
-nav .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--text);text-decoration:none}
-nav .brand img{width:32px;height:32px;border-radius:8px}
-nav .links{display:flex;gap:18px;font-size:.95rem}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--blue)}
+.wrap{max-width:980px;margin:0 auto;padding:0 22px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;color:var(--ink);text-decoration:none;letter-spacing:-.01em}
+.brand img{width:34px;height:34px}
+nav .links{display:flex;gap:22px;font-size:.95rem}
 nav .links a{color:var(--muted);text-decoration:none}
-.hero{text-align:center;padding:48px 0 40px}
-.hero img.icon{width:120px;height:120px;border-radius:27px;box-shadow:0 12px 40px rgba(91,140,255,.35)}
-h1{font-size:clamp(2rem,7vw,3.4rem);line-height:1.1;margin:24px 0 12px;letter-spacing:-.02em}
-h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero p.sub{max-width:600px;margin:0 auto 28px;color:var(--muted);font-size:1.15rem}
-.btn{display:inline-block;padding:14px 28px;border-radius:12px;font-weight:600;text-decoration:none;font-size:1.05rem;border:1px solid var(--line);color:var(--text);background:var(--card)}
-.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:0;box-shadow:0 8px 24px rgba(91,140,255,.35)}
+nav .links a:hover{color:var(--ink)}
+.hero{text-align:center;padding:56px 0 48px}
+.hero img.logo{width:132px;height:132px}
+h1{font-size:clamp(2.2rem,7vw,3.8rem);line-height:1.05;margin:20px 0 14px;letter-spacing:-.03em}
+h1 em{font-style:normal;color:var(--blue)}
+.sub{max-width:620px;margin:0 auto 30px;color:var(--muted);font-size:1.15rem}
+.btn{display:inline-block;padding:14px 28px;border-radius:12px;font-weight:700;text-decoration:none;font-size:1.02rem;border:2px solid var(--blue);color:var(--blue);background:transparent;cursor:pointer;font-family:inherit}
+.btn.primary{background:var(--blue);color:#fff}
 .btn:active{transform:scale(.98)}
 .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 .meta{margin-top:14px;color:var(--muted);font-size:.9rem}
-section{padding:44px 0}
-h2{font-size:clamp(1.5rem,5vw,2.1rem);margin:0 0 8px;letter-spacing:-.01em;text-align:center}
-.lead{text-align:center;color:var(--muted);margin:0 auto 28px;max-width:560px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
-.card .ic{font-size:1.6rem}
-.card h3{margin:8px 0 4px;font-size:1.05rem}
-.card p{margin:0;color:var(--muted);font-size:.95rem}
-ol.steps{max-width:640px;margin:0 auto;padding:0;list-style:none;counter-reset:s}
-ol.steps li{counter-increment:s;position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 16px 16px 60px;margin-bottom:12px}
-ol.steps li::before{content:counter(s);position:absolute;left:16px;top:16px;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;display:grid;place-items:center;font-weight:700}
+section{padding:48px 0}
+h2{font-size:clamp(1.6rem,5vw,2.3rem);margin:0 0 10px;letter-spacing:-.02em;text-align:center}
+.lead{text-align:center;color:var(--muted);margin:0 auto 32px;max-width:560px}
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+.tool{background:var(--tint);border:1px solid var(--line);border-radius:20px;padding:26px}
+.tool .tag{display:inline-block;background:var(--blue);color:#fff;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 10px}
+.tool h3{margin:14px 0 6px;font-size:1.3rem;letter-spacing:-.01em}
+.tool p{margin:0;color:var(--muted);font-size:.98rem}
+kbd{font:600 .85em ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:8px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 16px;font-size:.95rem;color:var(--muted)}
+ol.steps{max-width:660px;margin:0 auto;padding:0;list-style:none;counter-reset:s}
+ol.steps li{counter-increment:s;position:relative;border:1px solid var(--line);border-radius:16px;padding:16px 16px 16px 62px;margin-bottom:12px}
+ol.steps li::before{content:counter(s);position:absolute;left:16px;top:16px;width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:800}
 code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem}
-pre{background:#0b0d12;color:#dfe6f5;border-radius:10px;padding:12px;margin:10px 0 0;overflow-x:auto;position:relative}
-.copy{margin-top:8px;font-size:.8rem;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer}
-details{max-width:640px;margin:0 auto 10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
-summary{cursor:pointer;font-weight:600}
+pre{background:var(--ink);color:var(--bg);border-radius:10px;padding:12px;margin:10px 0 0;overflow-x:auto}
+.copy{margin-top:8px;font-size:.8rem;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+details{max-width:660px;margin:0 auto 10px;border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+summary{cursor:pointer;font-weight:700}
 details p{color:var(--muted);margin:10px 0 0}
-.donate{text-align:center;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:32px 20px}
-.addr{display:block;word-break:break-all;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:12px;margin:16px auto;max-width:520px;font-family:ui-monospace,Menlo,monospace;font-size:.85rem}
+.donate{text-align:center;background:var(--tint);border:1px solid var(--line);border-radius:22px;padding:34px 20px}
+.addr{display:block;word-break:break-all;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:12px;margin:16px auto;max-width:520px;font-size:.85rem}
 .note{color:var(--muted);font-size:.85rem;max-width:520px;margin:12px auto 0}
 footer{padding:32px 0 48px;text-align:center;color:var(--muted);font-size:.9rem}
 footer a{color:var(--muted)}
@@ -61,9 +65,9 @@ footer a{color:var(--muted)}
 <body>
 <div class="wrap">
   <nav>
-    <a class="brand" href="#"><img src="icon.jpg" alt="">MacMonitor</a>
+    <a class="brand" href="#"><img src="logo.svg" alt="">MacUtils</a>
     <div class="links">
-      <a class="hide-s" href="#features">Features</a>
+      <a class="hide-s" href="#tools">Tools</a>
       <a class="hide-s" href="#install">Install</a>
       <a href="#donate">Donate</a>
       <a href="https://github.com/alcolopa/macmonitor">GitHub</a>
@@ -71,30 +75,48 @@ footer a{color:var(--muted)}
   </nav>
 
   <header class="hero">
-    <img class="icon" src="icon.jpg" alt="MacMonitor app icon">
-    <h1>Your Mac's vitals,<br><span>right in the menu bar</span></h1>
-    <p class="sub">A lightweight, free and open-source system monitor for macOS. CPU, memory, disk, network, battery, temperatures, displays and weather, each with its own widget.</p>
+    <img class="logo" src="logo.svg" alt="MacUtils logo">
+    <h1>Small tools.<br><em>Big Mac energy.</em></h1>
+    <p class="sub">MacUtils lives in your menu bar and does a few useful things really well: a system monitor, a Caffeinate switch and a clipboard manager. Free and open source.</p>
     <div class="cta">
-      <a id="dl" class="btn primary" href="https://github.com/alcolopa/macmonitor/releases/latest">⬇ Download for macOS</a>
-      <a class="btn" href="#donate">♥ Support the project</a>
+      <a id="dl" class="btn primary" href="https://github.com/alcolopa/macmonitor/releases/latest">Download for macOS</a>
+      <a class="btn" href="#tools">See what it does</a>
     </div>
     <div class="meta" id="meta">Free · macOS 13 or later · Open source</div>
   </header>
 
-  <section id="features">
-    <h2>Everything you need, nothing you don't</h2>
-    <p class="lead">Build your own menu bar with a drag-and-drop widget builder.</p>
-    <div class="grid">
-      <div class="card"><div class="ic">⚡</div><h3>CPU</h3><p>Live usage with a per-core history graph and activity bars.</p></div>
-      <div class="card"><div class="ic">🧠</div><h3>Memory</h3><p>See what's used at a glance, with warning colours when it gets tight.</p></div>
-      <div class="card"><div class="ic">💾</div><h3>Disk</h3><p>Free space and usage, highlighted before you run out.</p></div>
-      <div class="card"><div class="ic">📡</div><h3>Network</h3><p>Upload and download speeds with clear, separate graphs.</p></div>
-      <div class="card"><div class="ic">🔋</div><h3>Battery</h3><p>Charge level and status, with low-battery alerts by colour.</p></div>
-      <div class="card"><div class="ic">🌡️</div><h3>Temperatures</h3><p>Keep an eye on heat with warning and danger thresholds.</p></div>
-      <div class="card"><div class="ic">🖥️</div><h3>Displays</h3><p>Connected display count and details.</p></div>
-      <div class="card"><div class="ic">⛅</div><h3>Weather</h3><p>Local conditions in your menu bar, with a remembered location.</p></div>
-      <div class="card"><div class="ic">🎨</div><h3>Customisable</h3><p>Drag-and-drop widget builder, colour themes, and a monochrome menu bar that follows light or dark.</p></div>
-      <div class="card"><div class="ic">🚀</div><h3>Launch at login</h3><p>Turn it on in Preferences and forget about it.</p></div>
+  <section id="tools">
+    <h2>Three tools, one tiny app</h2>
+    <p class="lead">Turn on only what you need.</p>
+    <div class="tools">
+      <div class="tool">
+        <span class="tag">Clipboard</span>
+        <h3>Paste anything you copied</h3>
+        <p>Hold <kbd>⌘</kbd><kbd>⇧</kbd> and press <kbd>V</kbd>. A picker opens in the middle of your screen; keep tapping <kbd>V</kbd> to move through your history and let go to paste the one you want.</p>
+      </div>
+      <div class="tool">
+        <span class="tag">Caffeinate</span>
+        <h3>Keep your Mac awake</h3>
+        <p>Click the cup in the menu bar and choose how long: 15 minutes, a few hours, or until you turn it off. No extra app needed.</p>
+      </div>
+      <div class="tool">
+        <span class="tag">Monitor</span>
+        <h3>Your Mac's vitals</h3>
+        <p>CPU, memory, disk, network, temperatures and weather as menu bar widgets, with a drag-and-drop builder to arrange them your way.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="details">
+    <h2>Built to stay out of your way</h2>
+    <p class="lead">Light on resources, easy on your privacy.</p>
+    <div class="chips">
+      <span class="chip">Clipboard history stays in memory</span>
+      <span class="chip">Skips password-manager copies</span>
+      <span class="chip">Native, no Electron</span>
+      <span class="chip">Launch at login</span>
+      <span class="chip">Light &amp; dark menu bar</span>
+      <span class="chip">Open source</span>
     </div>
   </section>
 
@@ -102,29 +124,32 @@ footer a{color:var(--muted)}
     <h2>Install in 3 steps</h2>
     <p class="lead">It takes about a minute.</p>
     <ol class="steps">
-      <li><strong>Download</strong> the zip using the button above, unzip it and drag <code>MacMonitor.app</code> into <code>/Applications</code>.</li>
-      <li><strong>Open it.</strong> macOS will probably warn that it "could not verify" the app. That's expected: MacMonitor is open source and built on GitHub, but not signed with a paid Apple Developer ID.</li>
+      <li><strong>Download</strong> the zip using the button above, unzip it and drag <code>MacUtils.app</code> into <code>/Applications</code>.</li>
+      <li><strong>Open it.</strong> macOS will probably warn that it "could not verify" the app. That's expected: MacUtils is open source and built on GitHub, but not signed with a paid Apple Developer ID.</li>
       <li><strong>Allow it once.</strong> Run this in Terminal, then open the app normally:
-        <pre id="cmd">xattr -dr com.apple.quarantine /Applications/MacMonitor.app</pre>
+        <pre id="cmd">xattr -dr com.apple.quarantine /Applications/MacUtils.app</pre>
         <button class="copy" id="copycmd">Copy command</button><br>
         <small style="color:var(--muted)">Or go to System Settings → Privacy &amp; Security and click <em>Open Anyway</em>.</small>
       </li>
     </ol>
+    <p class="lead" style="margin-top:24px">The clipboard shortcut needs <strong>Accessibility</strong> access (System Settings → Privacy &amp; Security → Accessibility) so MacUtils can see <kbd>⌘</kbd><kbd>⇧</kbd><kbd>V</kbd> and paste for you.</p>
   </section>
 
   <section id="faq">
     <h2>FAQ</h2>
     <p class="lead"></p>
-    <details><summary>Is it really free?</summary><p>Yes. MacMonitor is free and open source. Donations are optional and help keep development going.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. MacUtils is free and open source. Donations are optional and help keep development going.</p></details>
+    <details><summary>Does it store what I copy?</summary><p>Only in memory, for the last 30 items. Nothing is written to disk, it is gone when you quit, and copies flagged as sensitive by password managers are skipped. You can clear it any time from Settings.</p></details>
+    <details><summary>Why does the clipboard manager need Accessibility access?</summary><p>macOS requires it for any app that listens for a global shortcut and sends a paste keystroke. MacUtils uses it for nothing else.</p></details>
     <details><summary>Why the security warning?</summary><p>The app isn't notarized because that requires a paid Apple Developer account. You can read the code and build it yourself if you prefer.</p></details>
-    <details><summary>How do I upgrade?</summary><p>Quit the running MacMonitor from its menu bar item, then replace the app in /Applications with the new version.</p></details>
+    <details><summary>How do I upgrade?</summary><p>Quit the running MacUtils from its menu bar item, then replace the app in /Applications with the new version. You may need to grant Accessibility access again.</p></details>
     <details><summary>Which macOS versions work?</summary><p>macOS 13 (Ventura) or later.</p></details>
     <details><summary>Can I build it myself?</summary><p>Yes. Clone the repo and run <code>./scripts/build_app.sh</code> (requires Swift 6). See the <a href="https://github.com/alcolopa/macmonitor#build-from-source">README</a>.</p></details>
   </section>
 
   <section id="donate">
     <div class="donate">
-      <h2>♥ Support MacMonitor</h2>
+      <h2>Support MacUtils</h2>
       <p class="lead">If it's useful to you, you can chip in with <strong>USDT on the Arbitrum One network</strong>.</p>
       <code class="addr" id="addr">0x157F29dF2DF3760A96D8AbeFF9c0c93004Eb0de0</code>
       <div class="cta">
@@ -139,7 +164,7 @@ footer a{color:var(--muted)}
     <a href="https://github.com/alcolopa/macmonitor">Source on GitHub</a> ·
     <a href="https://github.com/alcolopa/macmonitor/releases">All releases</a> ·
     <a href="https://github.com/alcolopa/macmonitor/blob/main/CHANGELOG.md">Changelog</a>
-    <div style="margin-top:8px">Not affiliated with Apple or Bjango.</div>
+    <div style="margin-top:8px">Not affiliated with Apple.</div>
   </footer>
 </div>
 <script>
