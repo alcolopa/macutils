@@ -70,7 +70,7 @@ footer a{color:var(--muted)}
       <a class="hide-s" href="#tools">Tools</a>
       <a class="hide-s" href="#install">Install</a>
       <a href="#donate">Donate</a>
-      <a href="https://github.com/alcolopa/macmonitor">GitHub</a>
+      <a href="https://github.com/alcolopa/macutils">GitHub</a>
     </div>
   </nav>
 
@@ -79,7 +79,7 @@ footer a{color:var(--muted)}
     <h1>Small tools.<br><em>Big Mac energy.</em></h1>
     <p class="sub">MacUtils lives in your menu bar and does a few useful things really well: a system monitor, a Caffeinate switch and a clipboard manager. Free and open source.</p>
     <div class="cta">
-      <a id="dl" class="btn primary" href="https://github.com/alcolopa/macmonitor/releases/latest">Download for macOS</a>
+      <a id="dl" class="btn primary" href="https://github.com/alcolopa/macutils/releases/latest">Download for macOS</a>
       <a class="btn" href="#tools">See what it does</a>
     </div>
     <div class="meta" id="meta">Free · macOS 13 or later · Open source</div>
@@ -144,7 +144,7 @@ footer a{color:var(--muted)}
     <details><summary>Why the security warning?</summary><p>The app isn't notarized because that requires a paid Apple Developer account. You can read the code and build it yourself if you prefer.</p></details>
     <details><summary>How do I upgrade?</summary><p>Quit the running MacUtils from its menu bar item, then replace the app in /Applications with the new version. You may need to grant Accessibility access again.</p></details>
     <details><summary>Which macOS versions work?</summary><p>macOS 13 (Ventura) or later.</p></details>
-    <details><summary>Can I build it myself?</summary><p>Yes. Clone the repo and run <code>./scripts/build_app.sh</code> (requires Swift 6). See the <a href="https://github.com/alcolopa/macmonitor#build-from-source">README</a>.</p></details>
+    <details><summary>Can I build it myself?</summary><p>Yes. Clone the repo and run <code>./scripts/build_app.sh</code> (requires Swift 6). See the <a href="https://github.com/alcolopa/macutils#build-from-source">README</a>.</p></details>
   </section>
 
   <section id="donate">
@@ -161,15 +161,15 @@ footer a{color:var(--muted)}
   </section>
 
   <footer>
-    <a href="https://github.com/alcolopa/macmonitor">Source on GitHub</a> ·
-    <a href="https://github.com/alcolopa/macmonitor/releases">All releases</a> ·
-    <a href="https://github.com/alcolopa/macmonitor/blob/main/CHANGELOG.md">Changelog</a>
+    <a href="https://github.com/alcolopa/macutils">Source on GitHub</a> ·
+    <a href="https://github.com/alcolopa/macutils/releases">All releases</a> ·
+    <a href="https://github.com/alcolopa/macutils/blob/main/CHANGELOG.md">Changelog</a>
     <div style="margin-top:8px">Not affiliated with Apple.</div>
   </footer>
 </div>
 <script>
 // Point the download button straight at the latest zip; falls back to the releases page.
-fetch("https://api.github.com/repos/alcolopa/macmonitor/releases/latest")
+fetch("https://api.github.com/repos/alcolopa/macutils/releases/latest")
   .then(function(r){return r.ok?r.json():null})
   .then(function(rel){
     if(!rel)return;

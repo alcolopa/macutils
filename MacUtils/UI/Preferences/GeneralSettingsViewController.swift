@@ -191,6 +191,6 @@ final class GeneralSettingsViewController: SettingsPageViewController {
         intervalLabel.stringValue = String(format: "%.1f s", intervalSlider.doubleValue)
     }
     
-    @objc private func openGitHub() { NSWorkspace.shared.open(URL(string: "https://github.com/alcolopa/macmonitor")!) }
-    @objc private func openReleases() { NSWorkspace.shared.open(URL(string: "https://github.com/alcolopa/macmonitor/releases")!) }
+    @objc private func openGitHub() { NSWorkspace.shared.open(URL(string: "https://github.com/alcolopa/macutils")!) }
+    @objc private func openReleases() { NSWorkspace.shared.open(URL(string: "https://github.com/alcolopa/macutils/releases")!) }
 }

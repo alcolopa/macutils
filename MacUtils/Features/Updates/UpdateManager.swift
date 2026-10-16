@@ -23,7 +23,7 @@ public final class UpdateManager {
         case failed(String)
     }
     
-    private static let repo = "alcolopa/macmonitor"
+    private static let repo = "alcolopa/macutils"
     private static let lastCheckKey = "updateLastCheck"
     private static let notifiedKey = "updateNotifiedVersion"
     
