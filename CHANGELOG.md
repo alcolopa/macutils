@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- Project and GitHub repository renamed to MacUtils; update checks and in-app links now use the new repository
+
 ## 1.1.0
 
 - Renamed the app to MacUtils, with a new two-colour logo and a new website
