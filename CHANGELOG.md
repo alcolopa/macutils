@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2
+
+- Fix: the Top Processes lists in the CPU, Memory and Network panels now fill in right away instead of staying empty until the panel had been open for a while
+- In-app updates are now refused for unsigned copies, since their downloads can't be verified
+- Faster update downloads
+
 ## 1.1.1
 
 - Project and GitHub repository renamed to MacUtils; update checks and in-app links now use the new repository

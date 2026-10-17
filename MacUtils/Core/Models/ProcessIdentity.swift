@@ -25,7 +25,20 @@ public struct ProcessIdentity: Sendable {
         return "/" + comps[...idx].joined(separator: "/")
     }
     
+    // Reading Info.plist hits the disk, and resolve() runs for every process on every tick.
+    nonisolated(unsafe) private static var nameCache: [String: String] = [:]
+    private static let nameCacheLock = NSLock()
+    
     private static func bundleName(at appPath: String) -> String {
+        nameCacheLock.lock()
+        defer { nameCacheLock.unlock() }
+        if let cached = nameCache[appPath] { return cached }
+        let name = readBundleName(at: appPath)
+        nameCache[appPath] = name
+        return name
+    }
+    
+    private static func readBundleName(at appPath: String) -> String {
         let info = Bundle(path: appPath)?.infoDictionary
         if let n = info?["CFBundleDisplayName"] as? String, !n.isEmpty { return n }
         if let n = info?["CFBundleName"] as? String, !n.isEmpty { return n }

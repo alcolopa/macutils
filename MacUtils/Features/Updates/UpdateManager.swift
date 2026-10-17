@@ -138,27 +138,10 @@ public final class UpdateManager {
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("MacUtilsUpdate-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         let zip = work.appendingPathComponent("update.zip")
-        FileManager.default.createFile(atPath: zip.path, contents: nil)
         
-        let (bytes, response) = try await URLSession.shared.bytes(from: release.zipURL)
+        let (tmp, response) = try await URLSession.shared.download(from: release.zipURL)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError(message: "The download failed.") }
-        let total = Double(response.expectedContentLength)
-        let handle = try FileHandle(forWritingTo: zip)
-        var buffer = Data(), received = 0.0, lastReport = 0.0
-        for try await byte in bytes {
-            buffer.append(byte)
-            if buffer.count >= 65_536 {
-                try handle.write(contentsOf: buffer)
-                received += Double(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-                if total > 0, received / total - lastReport > 0.02 {
-                    lastReport = received / total
-                    state = .downloading(lastReport)
-                }
-            }
-        }
-        try handle.write(contentsOf: buffer)
-        try handle.close()
+        try FileManager.default.moveItem(at: tmp, to: zip)
         
         let extracted = work.appendingPathComponent("extracted")
         try await Task.detached { try Self.run("/usr/bin/ditto", ["-x", "-k", zip.path, extracted.path]) }.value
@@ -176,7 +159,10 @@ public final class UpdateManager {
         let current = Bundle.main.bundleURL.path
         let requirement = try capture("/usr/bin/codesign", ["-d", "-r-", current])
         guard let line = requirement.split(separator: "\n").first(where: { $0.hasPrefix("designated =>") }),
-              line.contains("certificate leaf") else { return }   // ad-hoc builds have nothing to compare
+              line.contains("certificate leaf") else {
+            // Nothing to compare against, so a tampered download could not be told apart.
+            throw UpdateError(message: "This copy of MacUtils is unsigned, so updates can't be verified. Download the new version from the release page.")
+        }
         let dr = String(line.dropFirst("designated => ".count))
         do { try run("/usr/bin/codesign", ["--verify", "--strict", "-R=\(dr)", newApp.path]) }
         catch { throw UpdateError(message: "The update isn't signed by the same developer, so it was not installed.") }

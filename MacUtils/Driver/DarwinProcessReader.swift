@@ -13,10 +13,26 @@ public final class DarwinProcessReader: @unchecked Sendable {
     
     public init() {}
     
+    private var lastReadTime: Date?
+    
     public func readTopProcesses(limit: Int = 5) -> (byMemory: [ProcessItem], byCPU: [ProcessItem]) {
+        // CPU % is a delta between two reads. If the last read is stale (popover was closed),
+        // prime a baseline and sample again shortly so the first display isn't all zeros.
+        lock.lock()
+        let stale = lastReadTime.map { Date().timeIntervalSince($0) > 2.0 } ?? true
+        lock.unlock()
+        if stale {
+            _ = sample(limit: limit)
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return sample(limit: limit)
+    }
+    
+    private func sample(limit: Int) -> (byMemory: [ProcessItem], byCPU: [ProcessItem]) {
         lock.lock()
         defer { lock.unlock() }
         
+        lastReadTime = Date()
         let now = mach_absolute_time()
         var timebase = mach_timebase_info()
         mach_timebase_info(&timebase)

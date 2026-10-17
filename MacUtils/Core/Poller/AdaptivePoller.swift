@@ -32,7 +32,12 @@ public final class AdaptivePoller: @unchecked Sendable {
     private var weatherTimer: DispatchSourceTimer?
     private var pathMonitor: NWPathMonitor?
     private var weatherRetryTask: Task<Void, Never>?
-    private var lastWeatherStats: WeatherStats = .unconfigured
+    private var _lastWeatherStats: WeatherStats = .unconfigured
+    // Read from the path-monitor queue and written on the main actor, so guard it.
+    private var lastWeatherStats: WeatherStats {
+        get { lock.lock(); defer { lock.unlock() }; return _lastWeatherStats }
+        set { lock.lock(); defer { lock.unlock() }; _lastWeatherStats = newValue }
+    }
     
     public var onMetricsUpdated: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, State) -> Void)?
     public var onExtendedMetricsUpdated: (@Sendable @MainActor (TemperatureStats) -> Void)?
