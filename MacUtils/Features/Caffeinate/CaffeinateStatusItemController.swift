@@ -3,39 +3,49 @@ import AppKit
 /// Menu bar cup. Click toggles Caffeinate using the default duration; right-click (or ⌃-click) opens the menu.
 @MainActor
 public final class CaffeinateStatusItemController: NSObject, NSMenuDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private var statusItem: NSStatusItem?
     private let manager = CaffeinateManager.shared
     private var countdownTimer: Timer?
     
     public override init() {
         super.init()
-        if let button = statusItem.button {
+        NotificationCenter.default.addObserver(forName: CaffeinateManager.didChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+    }
+    
+    /// Creates the menu bar item. Newer items appear to the left of older ones, so callers install right to left.
+    public func install() {
+        removeFromStatusBar()
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = item
+        if let button = item.button {
             button.target = self
             button.action = #selector(clicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.imagePosition = .imageLeft
-        }
-        NotificationCenter.default.addObserver(forName: CaffeinateManager.didChange, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
         }
         refresh()
         syncVisibility()
     }
     
     public func syncVisibility() {
-        statusItem.isVisible = AppPreferences.shared.showCaffeinate
+        statusItem?.isVisible = AppPreferences.shared.showCaffeinate
     }
     
     public func removeFromStatusBar() {
-        NSStatusBar.system.removeStatusItem(statusItem)
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
+        statusItem = nil
     }
     
     private func refresh() {
         let active = manager.isActive
         let image = NSImage(systemSymbolName: active ? "cup.and.saucer.fill" : "cup.and.saucer", accessibilityDescription: "Caffeinate")
         image?.isTemplate = true
-        statusItem.button?.image = image
-        statusItem.button?.toolTip = active
+        statusItem?.button?.image = image
+        statusItem?.button?.toolTip = active
             ? "Caffeinate is on. Click to turn off, right-click for options."
             : "Caffeinate is off. Click to keep your Mac awake, right-click for options."
         updateTitle()
@@ -50,12 +60,12 @@ public final class CaffeinateStatusItemController: NSObject, NSMenuDelegate {
     
     private func updateTitle() {
         guard manager.isActive, let end = manager.endDate else {
-            statusItem.button?.title = ""
+            statusItem?.button?.title = ""
             return
         }
         let minutes = max(1, Int((end.timeIntervalSinceNow / 60).rounded(.up)))
         let text = minutes >= 60 ? "\(minutes / 60)h\(minutes % 60 == 0 ? "" : " \(minutes % 60)m")" : "\(minutes)m"
-        statusItem.button?.attributedTitle = NSAttributedString(string: " " + text, attributes: [
+        statusItem?.button?.attributedTitle = NSAttributedString(string: " " + text, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         ])
     }
@@ -66,9 +76,9 @@ public final class CaffeinateStatusItemController: NSObject, NSMenuDelegate {
         if wantsMenu {
             let menu = NSMenu()
             menu.delegate = self
-            statusItem.menu = menu
+            statusItem?.menu = menu
             sender.performClick(nil)
-            statusItem.menu = nil
+            statusItem?.menu = nil
         } else if manager.isActive {
             manager.stop()
         } else {

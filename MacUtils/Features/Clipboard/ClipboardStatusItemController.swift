@@ -3,35 +3,42 @@ import AppKit
 /// Menu bar clipboard icon: lists recent copies (click to paste) plus quick controls.
 @MainActor
 public final class ClipboardStatusItemController: NSObject, NSMenuDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private var statusItem: NSStatusItem?
     private let store = ClipboardStore.shared
     private static let menuItemCount = 12
     
     public override init() {
         super.init()
+    }
+    
+    /// Creates the menu bar item. Newer items appear to the left of older ones, so callers install right to left.
+    public func install() {
+        removeFromStatusBar()
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = item
         let menu = NSMenu()
         menu.delegate = self
-        statusItem.menu = menu
-        if let button = statusItem.button { button.toolTip = "Clipboard history (hold ⌘⇧ and press V)" }
-        refreshIcon()
+        item.menu = menu
+        item.button?.toolTip = "Clipboard history (hold ⌘⇧ and press V)"
         syncVisibility()
     }
     
     public func syncVisibility() {
         let prefs = AppPreferences.shared
-        statusItem.isVisible = prefs.clipboardEnabled && prefs.showClipboardIcon
+        statusItem?.isVisible = prefs.clipboardEnabled && prefs.showClipboardIcon
         refreshIcon()
     }
     
     public func removeFromStatusBar() {
-        NSStatusBar.system.removeStatusItem(statusItem)
+        if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
+        statusItem = nil
     }
     
     private func refreshIcon() {
         let paused = AppPreferences.shared.clipboardPaused
-        let image = NSImage(systemSymbolName: paused ? "pause.circle" : "doc.on.clipboard", accessibilityDescription: "Clipboard")
+        let image = NSImage(systemSymbolName: paused ? "pause.circle" : AppPreferences.shared.clipboardIcon.symbolName, accessibilityDescription: "Clipboard")
         image?.isTemplate = true
-        statusItem.button?.image = image
+        statusItem?.button?.image = image
     }
     
     public func menuNeedsUpdate(_ menu: NSMenu) {

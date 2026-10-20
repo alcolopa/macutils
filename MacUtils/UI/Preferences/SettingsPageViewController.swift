@@ -85,6 +85,18 @@ class SettingsPageViewController: NSViewController {
         return b
     }
     
+    /// "Move left / Move right" buttons that shift a menu bar group one place along the bar.
+    func makePositionControl(for block: BarBlock) -> NSSegmentedControl {
+        let c = NSSegmentedControl(labels: ["← Left", "Right →"], trackingMode: .momentary, target: self, action: #selector(movePosition(_:)))
+        c.identifier = NSUserInterfaceItemIdentifier(block.rawValue)
+        return c
+    }
+    
+    @objc private func movePosition(_ sender: NSSegmentedControl) {
+        guard let id = sender.identifier?.rawValue, let block = BarBlock(rawValue: id) else { return }
+        AppPreferences.shared.moveBarBlock(block, by: sender.selectedSegment == 0 ? -1 : 1)
+    }
+    
     func observe(_ name: Notification.Name) {
         NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }

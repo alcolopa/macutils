@@ -9,6 +9,7 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
     private lazy var iconSwitch = makeSwitch(on: prefs.showClipboardIcon, action: #selector(iconChanged))
     private lazy var pauseSwitch = makeSwitch(on: prefs.clipboardPaused, action: #selector(pausedChanged))
     private lazy var richSwitch = makeSwitch(on: prefs.clipboardCaptureRich, action: #selector(richChanged))
+    private let iconPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let limitSlider = NSSlider(value: 30, minValue: 5, maxValue: 100, target: nil, action: nil)
     private let limitLabel = NSTextField(labelWithString: "")
     private let countLabel = NSTextField(labelWithString: "")
@@ -39,6 +40,17 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
         hero.spacing = 24
         hero.distribution = .fill
         steps.setContentHuggingPriority(.init(1), for: .horizontal)
+        
+        iconPopup.removeAllItems()
+        for icon in ClipboardIcon.allCases {
+            iconPopup.addItem(withTitle: icon.title)
+            let image = NSImage(systemSymbolName: icon.symbolName, accessibilityDescription: icon.title)
+            image?.isTemplate = true
+            iconPopup.lastItem?.image = image
+        }
+        iconPopup.selectItem(at: ClipboardIcon.allCases.firstIndex(of: prefs.clipboardIcon) ?? 0)
+        iconPopup.target = self
+        iconPopup.action = #selector(iconStyleChanged)
         
         limitSlider.integerValue = prefs.clipboardMaxItems
         limitSlider.target = self
@@ -79,6 +91,10 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
             SettingsLayout.card(title: "Options", [
                 SettingsLayout.toggleRow("Show icon in the menu bar", detail: "Click it to see recent copies and paste one.", control: iconSwitch),
                 SettingsLayout.divider(),
+                SettingsLayout.toggleRow("Icon", detail: "Pick how the clipboard looks in the menu bar.", control: iconPopup),
+                SettingsLayout.divider(),
+                SettingsLayout.toggleRow("Position", detail: "Move the icon left or right along the menu bar.", control: makePositionControl(for: .clipboard)),
+                SettingsLayout.divider(),
                 SettingsLayout.toggleRow("Remember images and files", detail: "Turn off to keep text only.", control: richSwitch),
                 SettingsLayout.divider(),
                 SettingsLayout.toggleRow("How many to remember", control: limitControl),
@@ -115,6 +131,7 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
     
     @objc private func enabledChanged() { prefs.clipboardEnabled = enableSwitch.state == .on; refreshSoon() }
     @objc private func iconChanged() { prefs.showClipboardIcon = iconSwitch.state == .on }
+    @objc private func iconStyleChanged() { prefs.clipboardIcon = ClipboardIcon.allCases[iconPopup.indexOfSelectedItem] }
     @objc private func pausedChanged() { prefs.clipboardPaused = pauseSwitch.state == .on }
     @objc private func richChanged() { prefs.clipboardCaptureRich = richSwitch.state == .on }
     @objc private func limitChanged() {

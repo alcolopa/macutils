@@ -248,9 +248,14 @@ public final class AppPreferences: @unchecked Sendable {
     private let keyClipboardPaused = "clipboardPaused"
     private let keyClipboardCaptureRich = "clipboardCaptureRich"
     private let keyCaffeinateDefaultDuration = "caffeinateDefaultDuration"
+    private let keyBarBlockOrder = "barBlockOrder"
+    private let keyClipboardIcon = "clipboardIcon"
     
+    public static let didChange = Notification.Name("MacUtilsPreferencesDidChange")
+
     public var onPreferencesChanged: (@Sendable @MainActor () -> Void)?
     public var onOrderChanged: (@Sendable @MainActor () -> Void)?
+    public var onBlockOrderChanged: (@Sendable @MainActor () -> Void)?
     
     private init() {
         let defaultOrder = MetricType.allCases.map { $0.rawValue }
@@ -401,6 +406,33 @@ public final class AppPreferences: @unchecked Sendable {
         case .temperatures: showTemperatures = visible
         case .weather: showWeather = visible
         }
+    }
+    
+    /// Left-to-right order of the menu bar groups: Caffeinate, the monitors as one group, and Clipboard.
+    public var barBlockOrder: [BarBlock] {
+        get {
+            var parsed = (defaults.stringArray(forKey: keyBarBlockOrder) ?? []).compactMap { BarBlock(rawValue: $0) }
+            for block in BarBlock.defaultOrder where !parsed.contains(block) { parsed.append(block) }
+            return parsed
+        }
+        set {
+            defaults.set(newValue.map(\.rawValue), forKey: keyBarBlockOrder)
+            DispatchQueue.main.async { [weak self] in self?.onBlockOrderChanged?(); NotificationCenter.default.post(name: Self.didChange, object: nil) }
+        }
+    }
+    
+    public func moveBarBlock(_ block: BarBlock, by offset: Int) {
+        var order = barBlockOrder
+        guard let from = order.firstIndex(of: block) else { return }
+        let to = from + offset
+        guard to >= 0, to < order.count else { return }
+        order.swapAt(from, to)
+        barBlockOrder = order
+    }
+    
+    public var clipboardIcon: ClipboardIcon {
+        get { ClipboardIcon(rawValue: defaults.string(forKey: keyClipboardIcon) ?? "") ?? .clipboard }
+        set { defaults.set(newValue.rawValue, forKey: keyClipboardIcon); notifyChange() }
     }
     
     public var metricOrder: [MetricType] {
@@ -575,13 +607,30 @@ public final class AppPreferences: @unchecked Sendable {
     private func notifyChange() {
         DispatchQueue.main.async { [weak self] in
             self?.onPreferencesChanged?()
+            NotificationCenter.default.post(name: Self.didChange, object: nil)
         }
     }
     
     private func notifyOrderChange() {
         DispatchQueue.main.async { [weak self] in
             self?.onPreferencesChanged?()
+            NotificationCenter.default.post(name: Self.didChange, object: nil)
             self?.onOrderChanged?()
         }
     }
+}
+
+/// A group of items in the menu bar that can be moved as a unit.
+public enum BarBlock: String, CaseIterable, Sendable {
+    case clipboard, caffeinate, monitors
+    
+    /// Left to right, matching where the items appeared before this was configurable.
+    public static let defaultOrder: [BarBlock] = [.clipboard, .caffeinate, .monitors]
+}
+
+public enum ClipboardIcon: String, CaseIterable, Sendable {
+    case clipboard, scissors
+    
+    public var title: String { self == .clipboard ? "Clipboard" : "Scissors" }
+    public var symbolName: String { self == .clipboard ? "doc.on.clipboard" : "scissors" }
 }

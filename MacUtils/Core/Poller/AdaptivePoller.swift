@@ -16,6 +16,14 @@ public final class AdaptivePoller: @unchecked Sendable {
     private let diskReader: MachDiskReader
     private let tempReader = MachTemperatureReader()
     private let processReader = DarwinProcessReader()
+    // nettop runs independently so it cannot delay the menu bar's system metrics.
+    private let processNetworkReader = MachNetworkReader()
+    private let processQueue = DispatchQueue(label: "com.macutils.processes", qos: .utility)
+    private var processTimer: DispatchSourceTimer?
+    private var processGeneration = 0
+    private var cachedMemoryProcesses: [ProcessItem] = []
+    private var cachedCPUProcesses: [ProcessItem] = []
+    private var cachedNetworkProcesses: [NetworkProcessItem] = []
     
     private let queue = DispatchQueue(label: "com.macutils.poller", qos: .utility)
     private var timer: DispatchSourceTimer?
@@ -68,11 +76,13 @@ public final class AdaptivePoller: @unchecked Sendable {
         defer { lock.unlock() }
         reconfigureTimer(for: currentState)
         startWeatherTimer()
+        startProcessTimerLocked()
     }
     
     public func stop() {
         lock.lock()
         defer { lock.unlock() }
+        stopProcessTimerLocked()
         timer?.setEventHandler(handler: nil)
         timer?.cancel()
         timer = nil
@@ -131,6 +141,7 @@ public final class AdaptivePoller: @unchecked Sendable {
         guard currentState != .suspended else { return }
         previousActiveState = currentState
         currentState = .suspended
+        stopProcessTimerLocked()
         timer?.cancel()
         timer = nil
         weatherTimer?.cancel()
@@ -144,6 +155,7 @@ public final class AdaptivePoller: @unchecked Sendable {
         currentState = previousActiveState
         reconfigureTimer(for: currentState)
         startWeatherTimer()
+        startProcessTimerLocked()
     }
     
     public func reconfigure() {
@@ -215,25 +227,12 @@ public final class AdaptivePoller: @unchecked Sendable {
         }
         lock.unlock()
         
-        // Only run expensive top process reading or nettop child processes when a relevant popover is actively open!
-        var topMem: [ProcessItem] = []
-        var topCPU: [ProcessItem] = []
-        var topNet: [NetworkProcessItem] = []
-        
-        if isAnyPopoverOpen {
-            let needsProc = popovers.isEmpty || popovers.contains(.cpu) || popovers.contains(.memory)
-            let needsNet = popovers.isEmpty || popovers.contains(.network)
-            
-            if needsProc {
-                let (memList, cpuList) = processReader.readTopProcesses(limit: 5)
-                topMem = memList
-                topCPU = cpuList
-            }
-            if needsNet {
-                topNet = networkReader.readTopNetworkProcesses(limit: 5)
-            }
-        }
-        
+        lock.lock()
+        let topMem = cachedMemoryProcesses
+        let topCPU = cachedCPUProcesses
+        let topNet = cachedNetworkProcesses
+        lock.unlock()
+
         let cpuStats = cpuReader.readSystemUsage(topProcesses: topCPU)
         let memStats = memoryReader.readMemoryUsage(topProcesses: topMem)
         let netStats = networkReader.readNetworkUsage(topProcesses: topNet)
@@ -255,6 +254,41 @@ public final class AdaptivePoller: @unchecked Sendable {
         }
     }
     
+    /// Keep every app list warm, even with all panels closed. A separate serial queue
+    /// prevents overlapping nettop launches and leaves the main metrics cadence intact.
+    private func startProcessTimerLocked() {
+        stopProcessTimerLocked()
+        let generation = processGeneration
+        let source = DispatchSource.makeTimerSource(queue: processQueue)
+        source.schedule(deadline: .now(), repeating: .seconds(2), leeway: .milliseconds(250))
+        source.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            let shouldSample = self.processGeneration == generation && self.currentState != .suspended
+            self.lock.unlock()
+            guard shouldSample else { return }
+
+            let (memory, cpu) = self.processReader.readTopProcesses(limit: 5)
+            let network = self.processNetworkReader.readTopNetworkProcesses(limit: 5)
+            self.lock.lock()
+            if self.processGeneration == generation {
+                self.cachedMemoryProcesses = memory
+                self.cachedCPUProcesses = cpu
+                self.cachedNetworkProcesses = network
+            }
+            self.lock.unlock()
+        }
+        processTimer = source
+        source.resume()
+    }
+
+    private func stopProcessTimerLocked() {
+        processGeneration += 1
+        processTimer?.setEventHandler(handler: nil)
+        processTimer?.cancel()
+        processTimer = nil
+    }
+
     private func setupWorkspaceObservers() {
         let wsCenter = NSWorkspace.shared.notificationCenter
         wsCenter.addObserver(

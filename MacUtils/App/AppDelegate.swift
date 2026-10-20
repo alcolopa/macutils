@@ -12,8 +12,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clipboardController: ClipboardStatusItemController?
     
     /// Fixed pool of NSStatusItems corresponding to slot positions in the status bar.
-    /// By allocating them once and never removing/recreating them, reordering is completely
-    /// instantaneous, flicker-free, and avoids destroying/rebuilding NSStatusItems.
+    /// Metric reordering reuses these slots; moving an entire group recreates them.
     private var statusItemSlots: [NSStatusItem] = []
     
     private var poller: AdaptivePoller?
@@ -46,9 +45,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let poller = AdaptivePoller()
         self.poller = poller
         
-        setupControllersAndSlots()
+        setupControllers()
         caffeinateController = CaffeinateStatusItemController()
         clipboardController = ClipboardStatusItemController()
+        applyBarBlockOrder()
         syncClipboardManager()
         
         var appliedInterval = prefs.passiveInterval
@@ -70,6 +70,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         prefs.onOrderChanged = { [weak self] in
             // Instantly rearrange controllers into status bar slots without destroying/recreating items
             self?.applyOrderToSlots()
+        }
+        
+        prefs.onBlockOrderChanged = { [weak self] in
+            self?.applyBarBlockOrder()
         }
         
         poller.onMetricsUpdated = { [weak self] cpuStats, memStats, netStats, diskStats, _ in
@@ -175,7 +179,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu
     }
     
-    private func setupControllersAndSlots() {
+    private func setupControllers() {
         let currentPoller = self.poller
         
         let cpu = CPUStatusItemController()
@@ -217,12 +221,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.weatherController = weather
         
-        // Allocate status item slots in the system status bar once
-        statusItemSlots = (0..<MetricType.allCases.count).map { _ in
-            NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        }
+    }
+    
+    /// macOS puts each new status item to the left of the existing ones, so the groups are (re)created
+    /// right to left. Only runs at launch and when the user moves a group.
+    private func applyBarBlockOrder() {
+        caffeinateController?.removeFromStatusBar()
+        clipboardController?.removeFromStatusBar()
+        for slot in statusItemSlots { NSStatusBar.system.removeStatusItem(slot) }
+        statusItemSlots.removeAll()
         
-        applyOrderToSlots()
+        for block in AppPreferences.shared.barBlockOrder.reversed() {
+            switch block {
+            case .caffeinate:
+                caffeinateController?.install()
+            case .clipboard:
+                clipboardController?.install()
+            case .monitors:
+                statusItemSlots = (0..<MetricType.allCases.count).map { _ in
+                    NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+                }.reversed()
+                applyOrderToSlots()
+            }
+        }
     }
     
     private func controller(for metric: MetricType) -> MetricStatusItemControlling? {

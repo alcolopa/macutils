@@ -1,7 +1,7 @@
 import AppKit
 
 enum PreferencesPage: Int, CaseIterable {
-    case general, clipboard, caffeinate, cpu, memory, disk, network, temperatures, weather
+    case general, menuBar, clipboard, caffeinate, cpu, memory, disk, network, temperatures, weather
     
     var metric: MetricType? {
         switch self {
@@ -18,6 +18,7 @@ enum PreferencesPage: Int, CaseIterable {
     var title: String {
         switch self {
         case .general: return "General"
+        case .menuBar: return "Menu Bar"
         case .clipboard: return "Clipboard"
         case .caffeinate: return "Caffeinate"
         case .cpu: return "CPU"
@@ -32,6 +33,7 @@ enum PreferencesPage: Int, CaseIterable {
     var symbol: String {
         switch self {
         case .general: return "gearshape.fill"
+        case .menuBar: return "menubar.rectangle"
         case .clipboard: return "doc.on.clipboard.fill"
         case .caffeinate: return "cup.and.saucer.fill"
         default: return metric?.iconSymbolName ?? "circle"
@@ -41,6 +43,7 @@ enum PreferencesPage: Int, CaseIterable {
     var color: NSColor {
         switch self {
         case .general: return .systemGray
+        case .menuBar: return .systemIndigo
         case .clipboard: return .systemBlue
         case .caffeinate: return .systemOrange
         case .cpu: return .systemRed
@@ -56,6 +59,7 @@ enum PreferencesPage: Int, CaseIterable {
     func makeViewController() -> NSViewController {
         switch self {
         case .general: return GeneralSettingsViewController()
+        case .menuBar: return MenuBarSettingsViewController()
         case .clipboard: return ClipboardSettingsViewController()
         case .caffeinate: return CaffeinateSettingsViewController()
         default: return MetricSettingsViewController(metric: metric ?? .cpu)
@@ -125,7 +129,7 @@ final class PreferencesSidebarViewController: NSViewController, @preconcurrency 
     }
     
     private let rows: [Row] = [
-        .page(.general), .page(.clipboard), .page(.caffeinate),
+        .page(.general), .page(.menuBar), .page(.clipboard), .page(.caffeinate),
         .header("System Monitor"),
         .page(.cpu), .page(.memory), .page(.disk), .page(.network), .page(.temperatures), .page(.weather)
     ]

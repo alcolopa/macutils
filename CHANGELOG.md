@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- New Menu Bar settings page previews your current icons, styles, visibility, and order, with drag-to-reorder monitors and quick editing controls
+- Clipboard and Caffeinate can be moved left or right relative to the MacUtils monitor group; the order is saved across launches
+- Choose a Clipboard or Scissors icon for clipboard history
+- CPU, Memory, and Network app lists preload and refresh in the background every two seconds, even while their panels are closed
+- Network app sampling runs separately from system metrics and pauses along with process sampling during sleep or screen lock
+
 ## 1.1.2
 
 - Fix: the Top Processes lists in the CPU, Memory and Network panels now fill in right away instead of staying empty until the panel had been open for a while

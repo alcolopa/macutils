@@ -62,6 +62,8 @@ final class CaffeinateSettingsViewController: SettingsPageViewController {
             SettingsLayout.card(title: "Menu bar", [
                 SettingsLayout.toggleRow("Show the cup in the menu bar", detail: "Click it to turn Caffeinate on or off. Right-click for more options. A running timer shows the time left.", control: showSwitch),
                 SettingsLayout.divider(),
+                SettingsLayout.toggleRow("Position", detail: "Move the cup left or right along the menu bar.", control: makePositionControl(for: .caffeinate)),
+                SettingsLayout.divider(),
                 SettingsLayout.toggleRow("When I click the cup, stay awake", detail: "Used by a plain click. Right-click lets you pick any duration.", control: durationPopup)
             ]),
             SettingsLayout.card(title: nil, [

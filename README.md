@@ -23,6 +23,10 @@ If you're upgrading, quit the running MacUtils first (menu bar item → Quit). O
 
 Enable **Launch MacUtils at login** in Preferences → General.
 
+Open **Preferences → Menu Bar** for an overview of all enabled MacUtils items with your selected icons and styles. Drag monitors in the preview to reorder them, or use the group arrows, visibility switches, and Edit buttons below. The preview uses sample readings and scrolls horizontally for wide setups.
+
+In Preferences → Clipboard or Caffeinate, use **Position → Left / Right** to move that utility relative to the other MacUtils groups. The order is saved for future launches. In Clipboard settings, choose **Icon → Clipboard or Scissors** to change its menu bar icon.
+
 ## Build from source
 
 Requires macOS 13+ and Swift 6.
