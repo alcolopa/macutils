@@ -18,6 +18,8 @@
     <string>MacUtils uses your location to show the weather where you are.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>MacUtils uses your location to show the weather where you are.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>MacUtils captures app audio streams to adjust volume per application.</string>
     <key>LSUIElement</key>
     <true/>
 </dict>

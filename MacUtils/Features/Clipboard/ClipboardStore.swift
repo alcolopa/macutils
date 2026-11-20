@@ -42,6 +42,12 @@ public final class ClipboardStore {
         NotificationCenter.default.post(name: Self.didChange, object: nil)
     }
     
+    public func add(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= Self.maxTextLength else { return }
+        insert(ClipboardItem(content: .text(trimmed), sourceBundleID: Bundle.main.bundleIdentifier))
+    }
+    
     /// Writes `item` to the system pasteboard without it being treated as a new copy, and moves it to the top.
     public func writeToPasteboard(_ item: ClipboardItem) {
         let pb = NSPasteboard.general

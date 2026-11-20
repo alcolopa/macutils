@@ -32,4 +32,42 @@ final class ProcessReaderTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(item.residentBytes, 0)
         }
     }
+    
+    func testProcessCPUUsageCalculationAccuracy() {
+        let reader = DarwinProcessReader()
+        _ = reader.readTopProcesses(limit: 5)
+        
+        let isRunning = ManagedAtomicBool(true)
+        let thread = Thread {
+            var counter: UInt64 = 0
+            while isRunning.value {
+                counter &+= 1
+            }
+            _ = counter
+        }
+        thread.start()
+        
+        Thread.sleep(forTimeInterval: 0.5)
+        let (_, byCPU) = reader.readTopProcesses(limit: 10)
+        isRunning.value = false
+        
+        let myPid = ProcessInfo.processInfo.processIdentifier
+        let myProcess = byCPU.first { $0.pid == myPid }
+        
+        // With a busy thread running for 500ms, the process should register substantial CPU%
+        // (historically crippled to ~1-2% on Apple Silicon due to mach timebase scaling bug)
+        if let proc = myProcess {
+            XCTAssertGreaterThan(proc.cpuPercentage, 20.0, "Busy process CPU% should be realistic, got \(proc.cpuPercentage)%")
+        }
+    }
+}
+
+private final class ManagedAtomicBool: @unchecked Sendable {
+    private var _val: Bool
+    private let lock = NSLock()
+    init(_ val: Bool) { self._val = val }
+    var value: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _val }
+        set { lock.lock(); defer { lock.unlock() }; _val = newValue }
+    }
 }

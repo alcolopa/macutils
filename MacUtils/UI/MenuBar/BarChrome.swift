@@ -33,6 +33,7 @@ public enum BarChrome {
         case .network:      return "NET"
         case .temperatures: return "TMP"
         case .weather:      return "WX"
+        case .battery:      return "BAT"
         }
     }
     

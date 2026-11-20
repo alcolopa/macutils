@@ -8,8 +8,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var networkController: NetworkStatusItemController?
     private var tempController: TemperatureStatusItemController?
     private var weatherController: WeatherStatusItemController?
+    private var batteryController: BatteryStatusItemController?
     private var caffeinateController: CaffeinateStatusItemController?
     private var clipboardController: ClipboardStatusItemController?
+    private var toolsController: QuickToolsStatusItemController?
+    private var audioMixerController: AudioMixerStatusItemController?
     
     /// Fixed pool of NSStatusItems corresponding to slot positions in the status bar.
     /// Metric reordering reuses these slots; moving an entire group recreates them.
@@ -48,8 +51,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         setupControllers()
         caffeinateController = CaffeinateStatusItemController()
         clipboardController = ClipboardStatusItemController()
+        toolsController = QuickToolsStatusItemController()
+        audioMixerController = AudioMixerStatusItemController()
         applyBarBlockOrder()
         syncClipboardManager()
+        syncToolsHotkeys()
         
         var appliedInterval = prefs.passiveInterval
         var appliedWeather = "\(prefs.weatherUpdateInterval)|\(prefs.weatherForecastMode.rawValue)"
@@ -63,7 +69,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // Update in place (no destroy/recreate) so the widgets don't blink while settings change.
             self?.refreshControllers()
             self?.caffeinateController?.syncVisibility()
+            self?.toolsController?.syncVisibility()
+            self?.audioMixerController?.syncVisibility()
             self?.syncClipboardManager()
+            self?.syncToolsHotkeys()
             self?.clipboardController?.syncVisibility()
         }
         
@@ -92,6 +101,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         poller.onWeatherUpdated = { [weak self] weatherStats in
             guard let self = self else { return }
             self.weatherController?.update(stats: weatherStats)
+        }
+        
+        poller.onBatteryUpdated = { [weak self] batteryStats in
+            guard let self = self else { return }
+            self.batteryController?.update(stats: batteryStats)
         }
         
         poller.start()
@@ -145,6 +159,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             ClipboardPicker.shared.start()
         } else {
             ClipboardPicker.shared.stop()
+        }
+    }
+    
+    private func syncToolsHotkeys() {
+        if AppPreferences.shared.toolsHotkeysEnabled {
+            QuickToolsHotkeys.shared.start()
+        } else {
+            QuickToolsHotkeys.shared.stop()
         }
     }
     
@@ -221,6 +243,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.weatherController = weather
         
+        let battery = BatteryStatusItemController()
+        battery.onPopoverStateChanged = { [weak currentPoller] isShown in
+            currentPoller?.registerPopoverState(for: .battery, isShown: isShown)
+        }
+        self.batteryController = battery
+        
     }
     
     /// macOS puts each new status item to the left of the existing ones, so the groups are (re)created
@@ -228,6 +256,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyBarBlockOrder() {
         caffeinateController?.removeFromStatusBar()
         clipboardController?.removeFromStatusBar()
+        toolsController?.removeFromStatusBar()
+        audioMixerController?.removeFromStatusBar()
         for slot in statusItemSlots { NSStatusBar.system.removeStatusItem(slot) }
         statusItemSlots.removeAll()
         
@@ -237,6 +267,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 caffeinateController?.install()
             case .clipboard:
                 clipboardController?.install()
+            case .audioMixer:
+                audioMixerController?.install()
+            case .tools:
+                toolsController?.install()
             case .monitors:
                 statusItemSlots = (0..<MetricType.allCases.count).map { _ in
                     NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -254,6 +288,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .network: return networkController
         case .temperatures: return tempController
         case .weather: return weatherController
+        case .battery: return batteryController
         }
     }
     
@@ -278,6 +313,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         networkController?.closePopover()
         tempController?.closePopover()
         weatherController?.closePopover()
+        batteryController?.closePopover()
+        audioMixerController?.closePopover()
     }
     
     private func refreshControllers() {
@@ -288,6 +325,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         networkController?.syncLength()
         tempController?.syncLength()
         weatherController?.syncLength()
+        batteryController?.syncLength()
     }
     
     private func syncItemVisibility() {
@@ -304,8 +342,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         poller?.stop()
         CaffeinateManager.shared.stop()
         ClipboardPicker.shared.stop()
+        QuickToolsHotkeys.shared.stop()
+        PerAppAudioManager.shared.stopAll()
         caffeinateController?.removeFromStatusBar()
         clipboardController?.removeFromStatusBar()
+        toolsController?.removeFromStatusBar()
+        audioMixerController?.removeFromStatusBar()
         for slot in statusItemSlots {
             NSStatusBar.system.removeStatusItem(slot)
         }

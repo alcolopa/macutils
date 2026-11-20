@@ -15,6 +15,7 @@ public final class AdaptivePoller: @unchecked Sendable {
     private let networkReader: MachNetworkReader
     private let diskReader: MachDiskReader
     private let tempReader = MachTemperatureReader()
+    private let batteryReader = MachBatteryReader()
     private let processReader = DarwinProcessReader()
     // nettop runs independently so it cannot delay the menu bar's system metrics.
     private let processNetworkReader = MachNetworkReader()
@@ -49,6 +50,7 @@ public final class AdaptivePoller: @unchecked Sendable {
     
     public var onMetricsUpdated: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, State) -> Void)?
     public var onExtendedMetricsUpdated: (@Sendable @MainActor (TemperatureStats) -> Void)?
+    public var onBatteryUpdated: (@Sendable @MainActor (BatteryStats) -> Void)?
     public var onWeatherUpdated: (@Sendable @MainActor (WeatherStats) -> Void)?
     
     public init(
@@ -238,19 +240,23 @@ public final class AdaptivePoller: @unchecked Sendable {
         let netStats = networkReader.readNetworkUsage(topProcesses: topNet)
         let diskStats = diskReader.readDiskUsage()
         let tempStats = tempReader.readTemperatures()
+        let batteryStats = batteryReader.readBatteryUsage()
         
         let state: State
         let callback: (@Sendable @MainActor (CPUStats, MemoryStats, NetworkStats, DiskStats, State) -> Void)?
         let extCallback: (@Sendable @MainActor (TemperatureStats) -> Void)?
+        let batCallback: (@Sendable @MainActor (BatteryStats) -> Void)?
         lock.lock()
         state = currentState
         callback = self.onMetricsUpdated
         extCallback = self.onExtendedMetricsUpdated
+        batCallback = self.onBatteryUpdated
         lock.unlock()
         
         DispatchQueue.main.async {
             callback?(cpuStats, memStats, netStats, diskStats, state)
             extCallback?(tempStats)
+            batCallback?(batteryStats)
         }
     }
     

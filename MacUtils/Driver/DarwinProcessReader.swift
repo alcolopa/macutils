@@ -68,15 +68,16 @@ public final class DarwinProcessReader: @unchecked Sendable {
                         let totalCurr = userTime + sysTime
                         if totalCurr >= totalPrev && now > prev.timestamp {
                             let deltaTicks = totalCurr - totalPrev
-                            let deltaNanos = (now - prev.timestamp) * UInt64(timebase.numer) / UInt64(timebase.denom)
-                            if deltaNanos > 0 {
-                                cpuPct = (Double(deltaTicks) / Double(deltaNanos)) * 100.0
+                            let elapsedTicks = now - prev.timestamp
+                            if elapsedTicks > 0 {
+                                cpuPct = (Double(deltaTicks) / Double(elapsedTicks)) * 100.0
                             }
                         }
                     }
                     
+                    let userNanos = timebase.denom > 0 ? (userTime * UInt64(timebase.numer)) / UInt64(timebase.denom) : userTime
                     currentTicks[pid] = ProcTicks(user: userTime, system: sysTime, timestamp: now)
-                    items.append(ProcessItem(pid: pid, name: name, residentBytes: resident, cpuPercentage: cpuPct, userTimeNanos: userTime))
+                    items.append(ProcessItem(pid: pid, name: name, residentBytes: resident, cpuPercentage: cpuPct, userTimeNanos: userNanos))
                 }
             }
         }

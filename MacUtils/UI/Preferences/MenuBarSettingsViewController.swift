@@ -53,6 +53,8 @@ final class MenuBarSettingsViewController: SettingsPageViewController {
             switch block {
             case .clipboard: title = "Clipboard"
             case .caffeinate: title = "Caffeinate"
+            case .audioMixer: title = "Per-App Audio Mixer"
+            case .tools: title = "Quick Tools & Utilities"
             case .monitors: title = "System monitors"
             }
             let controls = moveControl(index: index, count: prefs.barBlockOrder.count, action: #selector(moveGroup(_:)))
@@ -60,9 +62,15 @@ final class MenuBarSettingsViewController: SettingsPageViewController {
             addRow(title, controls: [controls], to: groups)
         }
         // Utility visibility and appearance stay accessible even when their icons are hidden.
-        for page in [PreferencesPage.clipboard, .caffeinate] {
-            let toggle = makeSwitch(on: page == .clipboard ? prefs.clipboardEnabled && prefs.showClipboardIcon : prefs.showCaffeinate,
-                                    action: #selector(toggleUtility(_:)))
+        for page in [PreferencesPage.clipboard, .caffeinate, .tools] {
+            let isOn: Bool
+            switch page {
+            case .clipboard: isOn = prefs.clipboardEnabled && prefs.showClipboardIcon
+            case .caffeinate: isOn = prefs.showCaffeinate
+            case .tools: isOn = prefs.showTools
+            default: isOn = false
+            }
+            let toggle = makeSwitch(on: isOn, action: #selector(toggleUtility(_:)))
             toggle.tag = page.rawValue
             addRow(page.title, controls: [toggle, settingsButton(page)], to: groups)
         }
@@ -120,6 +128,8 @@ final class MenuBarSettingsViewController: SettingsPageViewController {
         if sender.tag == PreferencesPage.clipboard.rawValue {
             if sender.state == .on { prefs.clipboardEnabled = true }
             prefs.showClipboardIcon = sender.state == .on
+        } else if sender.tag == PreferencesPage.tools.rawValue {
+            prefs.showTools = sender.state == .on
         } else {
             prefs.showCaffeinate = sender.state == .on
         }

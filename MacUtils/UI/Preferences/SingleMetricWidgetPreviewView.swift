@@ -421,6 +421,8 @@ public final class SingleMetricWidgetPreviewView: NSView {
             return AppPreferences.shared.temperatureUnit == .fahrenheit ? "118°F" : "48°C"
         case .weather:
             return AppPreferences.shared.temperatureUnit == .fahrenheit ? "72°F" : "22°C"
+        case .battery:
+            return "80%"
         }
     }
 }

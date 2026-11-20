@@ -51,7 +51,7 @@ final class TemperatureAndDisplayTests: XCTestCase {
         let prefs = AppPreferences.shared
         let originalOrder = prefs.metricOrder
         
-        let newOrder: [MetricType] = [.temperatures, .cpu, .memory, .disk, .network, .weather]
+        let newOrder: [MetricType] = [.temperatures, .cpu, .memory, .disk, .network, .weather, .battery]
         prefs.metricOrder = newOrder
         
         XCTAssertEqual(prefs.metricOrder, newOrder)

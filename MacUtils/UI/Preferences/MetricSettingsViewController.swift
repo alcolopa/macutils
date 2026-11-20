@@ -86,6 +86,7 @@ final class MetricSettingsViewController: SettingsPageViewController {
         case .network: return "Your current upload and download speed."
         case .temperatures: return "How warm your Mac is running."
         case .weather: return "The weather where you are, right in the menu bar."
+        case .battery: return "Battery level, charging status, and health."
         }
     }
     
@@ -134,6 +135,7 @@ final class MetricSettingsViewController: SettingsPageViewController {
         case .network: return "NET"
         case .temperatures: return "TMP"
         case .weather: return "WX"
+        case .battery: return "BAT"
         }
     }
     

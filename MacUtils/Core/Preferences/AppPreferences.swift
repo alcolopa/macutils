@@ -7,6 +7,7 @@ public enum MetricType: String, Sendable, CaseIterable, Codable {
     case network      = "network"
     case temperatures = "temperatures"
     case weather      = "weather"
+    case battery      = "battery"
     
     public var displayName: String {
         switch self {
@@ -16,6 +17,7 @@ public enum MetricType: String, Sendable, CaseIterable, Codable {
         case .network:      return "Network Activity"
         case .temperatures: return "Temperatures & Sensors"
         case .weather:      return "Weather & Forecast"
+        case .battery:      return "Battery & Power"
         }
     }
     
@@ -27,6 +29,7 @@ public enum MetricType: String, Sendable, CaseIterable, Codable {
         case .network:      return "network"
         case .temperatures: return "thermometer.medium"
         case .weather:      return "cloud.sun.fill"
+        case .battery:      return "battery.100"
         }
     }
 }
@@ -230,6 +233,11 @@ public final class AppPreferences: @unchecked Sendable {
     private let keyShowNetwork = "showNetwork"
     private let keyShowTemperatures = "showTemperatures"
     private let keyShowWeather = "showWeather"
+    private let keyShowBattery = "showBattery"
+    private let keyShowTools = "showTools"
+    private let keyShowAudioMixer = "showAudioMixer"
+    private let keyToolsHotkeysEnabled = "toolsHotkeysEnabled"
+    private let keyColorPickerFormat = "colorPickerFormat"
     private let keyWeatherApiKey = "weatherApiKey"
     private let keyWeatherCity = "weatherCity"
     private let keyWeatherUpdateInterval = "weatherUpdateInterval"
@@ -266,6 +274,11 @@ public final class AppPreferences: @unchecked Sendable {
             keyShowNetwork: true,
             keyShowTemperatures: true,
             keyShowWeather: true,
+            keyShowBattery: true,
+            keyShowTools: true,
+            keyShowAudioMixer: true,
+            keyToolsHotkeysEnabled: true,
+            keyColorPickerFormat: ColorPickerFormat.hex.rawValue,
             keyWeatherApiKey: "",
             keyWeatherCity: "auto",
             keyWeatherUpdateInterval: 1800, // 30 mins
@@ -314,6 +327,31 @@ public final class AppPreferences: @unchecked Sendable {
     public var showWeather: Bool {
         get { defaults.bool(forKey: keyShowWeather) }
         set { defaults.set(newValue, forKey: keyShowWeather); notifyChange() }
+    }
+    
+    public var showBattery: Bool {
+        get { defaults.bool(forKey: keyShowBattery) }
+        set { defaults.set(newValue, forKey: keyShowBattery); notifyChange() }
+    }
+    
+    public var showTools: Bool {
+        get { defaults.bool(forKey: keyShowTools) }
+        set { defaults.set(newValue, forKey: keyShowTools); notifyChange() }
+    }
+    
+    public var showAudioMixer: Bool {
+        get { defaults.bool(forKey: keyShowAudioMixer) }
+        set { defaults.set(newValue, forKey: keyShowAudioMixer); notifyChange() }
+    }
+    
+    public var toolsHotkeysEnabled: Bool {
+        get { defaults.bool(forKey: keyToolsHotkeysEnabled) }
+        set { defaults.set(newValue, forKey: keyToolsHotkeysEnabled); notifyChange() }
+    }
+    
+    public var colorPickerFormat: ColorPickerFormat {
+        get { ColorPickerFormat(rawValue: defaults.string(forKey: keyColorPickerFormat) ?? "") ?? .hex }
+        set { defaults.set(newValue.rawValue, forKey: keyColorPickerFormat); notifyChange() }
     }
     
     public var weatherApiKey: String {
@@ -394,6 +432,7 @@ public final class AppPreferences: @unchecked Sendable {
         case .network: return showNetwork
         case .temperatures: return showTemperatures
         case .weather: return showWeather
+        case .battery: return showBattery
         }
     }
     
@@ -405,6 +444,7 @@ public final class AppPreferences: @unchecked Sendable {
         case .network: showNetwork = visible
         case .temperatures: showTemperatures = visible
         case .weather: showWeather = visible
+        case .battery: showBattery = visible
         }
     }
     
@@ -536,8 +576,8 @@ public final class AppPreferences: @unchecked Sendable {
             // Bars and gauges don't mean anything for weather, so only real weather readings are offered.
             // .textOnly = temperature, .barOnly = condition icon.
             return [.textOnly, .barOnly, .feelsLike, .highLow, .humidity, .wind, .rainChance]
-        case .disk, .temperatures:
-            return [.textOnly, .barOnly, .verticalBar, .circularGauge]
+        case .disk, .temperatures, .battery:
+            return [.textOnly, .standard, .barOnly, .verticalBar, .circularGauge]
         case .memory:
             return [.textOnly, .barOnly, .verticalBar, .circularGauge, .multicolorCircle]
         case .network:
@@ -622,10 +662,10 @@ public final class AppPreferences: @unchecked Sendable {
 
 /// A group of items in the menu bar that can be moved as a unit.
 public enum BarBlock: String, CaseIterable, Sendable {
-    case clipboard, caffeinate, monitors
+    case clipboard, caffeinate, audioMixer, tools, monitors
     
     /// Left to right, matching where the items appeared before this was configurable.
-    public static let defaultOrder: [BarBlock] = [.clipboard, .caffeinate, .monitors]
+    public static let defaultOrder: [BarBlock] = [.clipboard, .caffeinate, .audioMixer, .tools, .monitors]
 }
 
 public enum ClipboardIcon: String, CaseIterable, Sendable {
@@ -633,4 +673,18 @@ public enum ClipboardIcon: String, CaseIterable, Sendable {
     
     public var title: String { self == .clipboard ? "Clipboard" : "Scissors" }
     public var symbolName: String { self == .clipboard ? "doc.on.clipboard" : "scissors" }
+}
+
+public enum ColorPickerFormat: String, CaseIterable, Sendable {
+    case hex = "HEX"
+    case rgb = "RGB"
+    case hsl = "HSL"
+    
+    public var example: String {
+        switch self {
+        case .hex: return "#3B82F6"
+        case .rgb: return "rgb(59, 130, 246)"
+        case .hsl: return "hsl(217, 91%, 60%)"
+        }
+    }
 }

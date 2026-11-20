@@ -5,6 +5,8 @@ public final class NetworkPopoverViewController: NSViewController {
     private let speedCard = MetricCardView(title: "Bandwidth Speed")
     private let networkInfoCard = MetricCardView(title: "Interface & Connection")
     private let totalCard = MetricCardView(title: "Data Transferred")
+    private let portsCard = MetricCardView(title: "Listening Ports (Dev Servers)", contentInsets: NSEdgeInsets(top: 8, left: 6, bottom: 8, right: 6))
+    private let portsStack = NSStackView()
     private let topProcCard = MetricCardView(title: "Apps Using Network", contentInsets: NSEdgeInsets(top: 8, left: 6, bottom: 8, right: 6))
     private let procTableView = ProcessTableView(mode: .network)
     
@@ -88,7 +90,14 @@ public final class NetworkPopoverViewController: NSViewController {
         topProcCard.addContentSubview(procTableView)
         container.addArrangedSubview(topProcCard)
         
-        // 5. Totals Card
+        // 5. Listening Ports Card
+        portsStack.orientation = .vertical
+        portsStack.spacing = 6
+        portsStack.alignment = .width
+        portsCard.addContentSubview(portsStack)
+        container.addArrangedSubview(portsCard)
+        
+        // 6. Totals Card
         let totalStack = NSStackView(views: [totalInRow, totalOutRow])
         totalStack.orientation = .vertical
         totalStack.spacing = 4
@@ -141,8 +150,85 @@ public final class NetworkPopoverViewController: NSViewController {
         // Update top processes using network
         procTableView.update(networkProcesses: stats.topProcesses)
         
+        updatePortsList()
+        
         totalInRow.setValue(NetworkStats.formatTotalBytes(stats.totalBytesIn))
         totalOutRow.setValue(NetworkStats.formatTotalBytes(stats.totalBytesOut))
         totalCard.setBadge(NetworkStats.formatTotalBytes(stats.totalBytesIn + stats.totalBytesOut))
+    }
+    
+    private func updatePortsList() {
+        portsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let ports = DarwinPortReader.shared.readListeningPorts()
+        
+        if ports.isEmpty {
+            let label = NSTextField(labelWithString: "No listening ports active")
+            label.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+            label.textColor = .secondaryLabelColor
+            portsStack.addArrangedSubview(label)
+            return
+        }
+        
+        for item in ports.prefix(6) {
+            let row = NSView()
+            row.translatesAutoresizingMaskIntoConstraints = false
+            row.heightAnchor.constraint(equalToConstant: 20).isActive = true
+            
+            let iconView = NSImageView()
+            iconView.translatesAutoresizingMaskIntoConstraints = false
+            if let iconPath = item.iconPath {
+                iconView.image = NSWorkspace.shared.icon(forFile: iconPath)
+            } else {
+                iconView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
+            }
+            row.addSubview(iconView)
+            
+            let nameLabel = NSTextField(labelWithString: item.processName)
+            nameLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+            nameLabel.textColor = .labelColor
+            nameLabel.lineBreakMode = .byTruncatingTail
+            nameLabel.translatesAutoresizingMaskIntoConstraints = false
+            row.addSubview(nameLabel)
+            
+            let portBadge = NSTextField(labelWithString: ":\(item.port)")
+            portBadge.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+            portBadge.textColor = .systemTeal
+            portBadge.translatesAutoresizingMaskIntoConstraints = false
+            row.addSubview(portBadge)
+            
+            let killBtn = NSButton(title: "Kill", target: self, action: #selector(killPortProcess(_:)))
+            killBtn.bezelStyle = .inline
+            killBtn.controlSize = .mini
+            killBtn.tag = Int(item.pid)
+            killBtn.translatesAutoresizingMaskIntoConstraints = false
+            row.addSubview(killBtn)
+            
+            NSLayoutConstraint.activate([
+                iconView.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 4),
+                iconView.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                iconView.widthAnchor.constraint(equalToConstant: 16),
+                iconView.heightAnchor.constraint(equalToConstant: 16),
+                
+                nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6),
+                nameLabel.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: portBadge.leadingAnchor, constant: -6),
+                
+                portBadge.trailingAnchor.constraint(equalTo: killBtn.leadingAnchor, constant: -8),
+                portBadge.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                
+                killBtn.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -4),
+                killBtn.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                killBtn.widthAnchor.constraint(equalToConstant: 34)
+            ])
+            
+            portsStack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: portsStack.widthAnchor).isActive = true
+        }
+    }
+    
+    @objc private func killPortProcess(_ sender: NSButton) {
+        let pid = Int32(sender.tag)
+        _ = DarwinPortReader.shared.killProcess(pid: pid)
+        updatePortsList()
     }
 }

@@ -1,7 +1,7 @@
 import AppKit
 
 enum PreferencesPage: Int, CaseIterable {
-    case general, menuBar, clipboard, caffeinate, cpu, memory, disk, network, temperatures, weather
+    case general, menuBar, clipboard, caffeinate, tools, cpu, memory, disk, network, temperatures, weather, battery
     
     var metric: MetricType? {
         switch self {
@@ -11,6 +11,7 @@ enum PreferencesPage: Int, CaseIterable {
         case .network: return .network
         case .temperatures: return .temperatures
         case .weather: return .weather
+        case .battery: return .battery
         default: return nil
         }
     }
@@ -21,12 +22,14 @@ enum PreferencesPage: Int, CaseIterable {
         case .menuBar: return "Menu Bar"
         case .clipboard: return "Clipboard"
         case .caffeinate: return "Caffeinate"
+        case .tools: return "Quick Tools"
         case .cpu: return "CPU"
         case .memory: return "Memory"
         case .disk: return "Disk"
         case .network: return "Network"
         case .temperatures: return "Temperatures"
         case .weather: return "Weather"
+        case .battery: return "Battery"
         }
     }
     
@@ -36,6 +39,7 @@ enum PreferencesPage: Int, CaseIterable {
         case .menuBar: return "menubar.rectangle"
         case .clipboard: return "doc.on.clipboard.fill"
         case .caffeinate: return "cup.and.saucer.fill"
+        case .tools: return "wrench.and.screwdriver.fill"
         default: return metric?.iconSymbolName ?? "circle"
         }
     }
@@ -46,12 +50,14 @@ enum PreferencesPage: Int, CaseIterable {
         case .menuBar: return .systemIndigo
         case .clipboard: return .systemBlue
         case .caffeinate: return .systemOrange
+        case .tools: return .systemMint
         case .cpu: return .systemRed
         case .memory: return .systemPurple
         case .disk: return .systemTeal
         case .network: return .systemGreen
         case .temperatures: return .systemPink
         case .weather: return .systemCyan
+        case .battery: return .systemGreen
         }
     }
     
@@ -62,6 +68,7 @@ enum PreferencesPage: Int, CaseIterable {
         case .menuBar: return MenuBarSettingsViewController()
         case .clipboard: return ClipboardSettingsViewController()
         case .caffeinate: return CaffeinateSettingsViewController()
+        case .tools: return ToolsSettingsViewController()
         default: return MetricSettingsViewController(metric: metric ?? .cpu)
         }
     }
@@ -129,9 +136,9 @@ final class PreferencesSidebarViewController: NSViewController, @preconcurrency 
     }
     
     private let rows: [Row] = [
-        .page(.general), .page(.menuBar), .page(.clipboard), .page(.caffeinate),
+        .page(.general), .page(.menuBar), .page(.clipboard), .page(.caffeinate), .page(.tools),
         .header("System Monitor"),
-        .page(.cpu), .page(.memory), .page(.disk), .page(.network), .page(.temperatures), .page(.weather)
+        .page(.cpu), .page(.memory), .page(.disk), .page(.network), .page(.temperatures), .page(.weather), .page(.battery)
     ]
     private let tableView = NSTableView()
     var onSelect: ((PreferencesPage) -> Void)?

@@ -79,6 +79,18 @@ public final class ClipboardStatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(hint)
         menu.addItem(.separator())
         
+        let ocrItem = NSMenuItem(title: "Extract Text from Screen (OCR)...", action: #selector(extractTextOCR), keyEquivalent: "")
+        ocrItem.target = self
+        ocrItem.image = NSImage(systemSymbolName: "text.viewfinder", accessibilityDescription: nil)
+        menu.addItem(ocrItem)
+        
+        let colorItem = NSMenuItem(title: "Pick Screen Color (Magnifier)...", action: #selector(pickColor), keyEquivalent: "")
+        colorItem.target = self
+        colorItem.image = NSImage(systemSymbolName: "eyedropper.halffull", accessibilityDescription: nil)
+        menu.addItem(colorItem)
+        
+        menu.addItem(.separator())
+        
         let pause = NSMenuItem(title: prefs.clipboardPaused ? "Resume Recording" : "Pause Recording", action: #selector(togglePause), keyEquivalent: "")
         pause.target = self
         menu.addItem(pause)
@@ -109,6 +121,14 @@ public final class ClipboardStatusItemController: NSObject, NSMenuDelegate {
     }
     
     @objc private func clearHistory() { store.clear() }
+    
+    @objc private func extractTextOCR() {
+        ScreenTextExtractor.shared.extractTextFromScreen()
+    }
+    
+    @objc private func pickColor() {
+        ScreenColorPicker.shared.pickColor()
+    }
     
     @objc private func openSettings() {
         PreferencesWindowController.shared.showPreferences(selecting: .clipboard)

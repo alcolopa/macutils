@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+- Fix: Top Processes by CPU usage on Apple Silicon no longer under-reports percentages by ~41.7× (Mach timebase scaling bug)
+- New: Per-App Audio Mixer in the menu bar to adjust volume and mute individually per app (macOS 14.2+ Core Audio Process Taps) with output device switcher and mic mute
+- New: Quick Tools menu bar item with global hotkeys (`⌘⇧2` OCR Screen Text Grabber, `⌘⇧X` Screen Color Picker in HEX/RGB/HSL, `⌘⇧N` Quick Scratchpad, `⌥⇧M` Global Mic Mute, `⌘⇧D` Clean Desktop Mode)
+- New: Live camera and microphone privacy status indicator in Quick Tools
+- New: External display brightness & volume sliders (DDC/CI) and built-in display brightness controls
+- New: Listening Ports (Dev Servers) viewer with one-click process Kill in the Network popover and Quick Tools menu
+- New: Battery & Power Health monitor widget and popover
+- New: Quick Tools preferences page to configure visibility, menu bar position, global hotkeys, and color picker format
+
 ## 1.2.0
 
 - New Menu Bar settings page previews your current icons, styles, visibility, and order, with drag-to-reorder monitors and quick editing controls

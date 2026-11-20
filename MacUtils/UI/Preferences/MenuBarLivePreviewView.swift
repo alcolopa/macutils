@@ -80,6 +80,14 @@ public final class MenuBarLivePreviewView: NSView, DraggableMetricItemViewDelega
                 if prefs.showCaffeinate {
                     addUtility(symbol: CaffeinateManager.shared.isActive ? "cup.and.saucer.fill" : "cup.and.saucer", title: "Caffeinate")
                 }
+            case .audioMixer:
+                if prefs.showAudioMixer {
+                    addUtility(symbol: "slider.vertical.3", title: "Audio Mixer")
+                }
+            case .tools:
+                if prefs.showTools {
+                    addUtility(symbol: "wrench.and.screwdriver", title: "Tools")
+                }
             case .monitors:
                 for metric in prefs.metricOrder where prefs.isMetricVisible(metric) {
                     let dragItem = DraggableMetricItemView(metric: metric, isFocusedMetric: focusedMetric == metric)
