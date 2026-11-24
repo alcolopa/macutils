@@ -11,9 +11,8 @@ import Carbon.HIToolbox
 public final class ClipboardPicker {
     public static let shared = ClipboardPicker()
     
-    private enum HotKey: UInt32 { case open = 1, escape, up, down, enter }
+    private enum HotKey { case open, escape, up, down, enter }
     
-    private var handlerRef: EventHandlerRef?
     private var openKey: EventHotKeyRef?
     private var modalKeys: [EventHotKeyRef] = []
     private var flagsTimer: Timer?
@@ -40,10 +39,9 @@ public final class ClipboardPicker {
     
     public func start() {
         ClipboardStore.shared.start()
-        installHandlerIfNeeded()
         let wanted = Self.shortcut
         guard registeredShortcut != wanted else { return }
-        if let openKey { UnregisterEventHotKey(openKey) }
+        if let openKey { GlobalHotKeys.shared.unregister(openKey) }
         registeredShortcut = wanted
         openKey = register(wanted, id: .open)
         isShortcutActive = openKey != nil
@@ -51,18 +49,11 @@ public final class ClipboardPicker {
     
     public func stop() {
         if isShowing { hide() }
-        if let openKey { UnregisterEventHotKey(openKey) }
+        if let openKey { GlobalHotKeys.shared.unregister(openKey) }
         openKey = nil
         registeredShortcut = nil
         isShortcutActive = false
         ClipboardStore.shared.stop()
-    }
-    
-    private func installHandlerIfNeeded() {
-        guard handlerRef == nil else { return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), clipboardHotKeyHandler, 1, &spec,
-                            Unmanaged.passUnretained(self).toOpaque(), &handlerRef)
     }
     
     private func register(_ shortcut: Shortcut, id: HotKey) -> EventHotKeyRef? {
@@ -70,15 +61,12 @@ public final class ClipboardPicker {
     }
     
     private func register(keyCode: Int, modifiers: UInt32, id: HotKey) -> EventHotKeyRef? {
-        var ref: EventHotKeyRef?
-        let hotKeyID = EventHotKeyID(signature: OSType(0x4D555449), id: id.rawValue) // 'MUTI'
-        let status = RegisterEventHotKey(UInt32(keyCode), modifiers, hotKeyID,
-                                         GetApplicationEventTarget(), 0, &ref)
-        return status == noErr ? ref : nil
+        GlobalHotKeys.shared.register(keyCode: UInt32(keyCode), modifiers: modifiers) { [weak self] in
+            self?.hotKeyPressed(id)
+        }
     }
     
-    fileprivate func hotKeyPressed(_ rawID: UInt32) {
-        guard let key = HotKey(rawValue: rawID) else { return }
+    private func hotKeyPressed(_ key: HotKey) {
         switch key {
         case .open: isShowing ? step(1) : show()
         case .escape: hide()
@@ -131,7 +119,7 @@ public final class ClipboardPicker {
         isShowing = false
         flagsTimer?.invalidate()
         flagsTimer = nil
-        modalKeys.forEach { UnregisterEventHotKey($0) }
+        modalKeys.forEach { GlobalHotKeys.shared.unregister($0) }
         modalKeys.removeAll()
         panel.orderOut(nil)
     }
@@ -145,16 +133,4 @@ public final class ClipboardPicker {
             panel.showMessage("Copied. Press ⌘V to paste.", detail: "Allow MacUtils in Privacy & Security → Accessibility to paste automatically.")
         }
     }
-}
-
-private func clipboardHotKeyHandler(_ next: EventHandlerCallRef?, _ event: EventRef?, _ userData: UnsafeMutableRawPointer?) -> OSStatus {
-    guard let userData, let event else { return OSStatus(eventNotHandledErr) }
-    var hotKeyID = EventHotKeyID()
-    let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
-                                   nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
-    guard status == noErr else { return status }
-    let picker = Unmanaged<ClipboardPicker>.fromOpaque(userData).takeUnretainedValue()
-    // Hot key events are delivered on the main thread.
-    MainActor.assumeIsolated { picker.hotKeyPressed(hotKeyID.id) }
-    return noErr
 }

@@ -1,8 +1,7 @@
 import AppKit
 import Carbon
 
-/// Registers global system-wide hotkeys for Quick Tools using Carbon Event Manager
-/// (no Accessibility permission required).
+/// Registers the Quick Tools global hotkeys through `GlobalHotKeys`.
 @MainActor
 public final class QuickToolsHotkeys {
     public static let shared = QuickToolsHotkeys()
@@ -28,9 +27,7 @@ public final class QuickToolsHotkeys {
         shortcuts.first { $0.id == id }!.current
     }
     
-    private static let signature: OSType = 0x4D55544C // 'MUTL'
     private var hotKeyRefs: [EventHotKeyRef] = []
-    private var eventHandlerRef: EventHandlerRef?
     private var isStarted = false
     private var registered: [Shortcut] = []
     
@@ -39,47 +36,16 @@ public final class QuickToolsHotkeys {
     public func start() {
         guard !isStarted else { return reloadIfNeeded() }
         isStarted = true
-        
-        var eventSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        let handler: EventHandlerUPP = { _, event, _ -> OSStatus in
-            var hotKeyID = EventHotKeyID()
-            let err = GetEventParameter(
-                event,
-                EventParamName(kEventParamDirectObject),
-                EventParamType(typeEventHotKeyID),
-                nil,
-                MemoryLayout<EventHotKeyID>.size,
-                nil,
-                &hotKeyID
-            )
-            // Let other handlers (the clipboard picker's) see hot keys that aren't ours.
-            guard err == noErr, hotKeyID.signature == QuickToolsHotkeys.signature else {
-                return OSStatus(eventNotHandledErr)
-            }
-            do {
-                let id = hotKeyID.id
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        QuickToolsHotkeys.shared.handleHotKey(id: id)
-                    }
-                }
-            }
-            return noErr
-        }
-        
-        InstallEventHandler(GetApplicationEventTarget(), handler, 1, &eventSpec, nil, &eventHandlerRef)
-        
         registerAll()
     }
     
     private func registerAll() {
-        hotKeyRefs.forEach { UnregisterEventHotKey($0) }
+        hotKeyRefs.forEach { GlobalHotKeys.shared.unregister($0) }
         hotKeyRefs.removeAll()
         registered = Self.shortcuts.map(\.current)
         for (sc, key) in zip(Self.shortcuts, registered) {
-            var ref: EventHotKeyRef?
-            let hkID = EventHotKeyID(signature: Self.signature, id: sc.id)
-            if RegisterEventHotKey(key.keyCode, key.modifiers, hkID, GetApplicationEventTarget(), 0, &ref) == noErr, let ref {
+            let id = sc.id
+            if let ref = GlobalHotKeys.shared.register(keyCode: key.keyCode, modifiers: key.modifiers, action: { [weak self] in self?.handleHotKey(id: id) }) {
                 hotKeyRefs.append(ref)
             }
         }
@@ -93,14 +59,8 @@ public final class QuickToolsHotkeys {
     public func stop() {
         guard isStarted else { return }
         isStarted = false
-        for ref in hotKeyRefs {
-            UnregisterEventHotKey(ref)
-        }
+        hotKeyRefs.forEach { GlobalHotKeys.shared.unregister($0) }
         hotKeyRefs.removeAll()
-        if let handler = eventHandlerRef {
-            RemoveEventHandler(handler)
-            eventHandlerRef = nil
-        }
     }
     
     private func handleHotKey(id: UInt32) {
