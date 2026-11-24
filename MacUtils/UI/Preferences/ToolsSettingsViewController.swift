@@ -11,6 +11,7 @@ final class ToolsSettingsViewController: SettingsPageViewController {
     private lazy var hotkeysSwitch = makeSwitch(on: prefs.toolsHotkeysEnabled, action: #selector(hotkeysChanged))
     private lazy var micMuteSwitch = makeSwitch(on: audioManager.isInputMuted(), action: #selector(micMuteChanged))
     private lazy var cleanDesktopSwitch = makeSwitch(on: desktopManager.areIconsHidden, action: #selector(cleanDesktopChanged))
+    private var recorders: [(QuickToolsHotkeys.ShortcutInfo, ShortcutRecorderButton)] = []
     private let colorFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     
     override var pageTitle: String { "Quick Tools" }
@@ -31,16 +32,16 @@ final class ToolsSettingsViewController: SettingsPageViewController {
         colorFormatPopup.target = self
         colorFormatPopup.action = #selector(colorFormatChanged)
         
+        recorders = []
         var shortcutRows: [NSView] = [
-            SettingsLayout.toggleRow("Enable global hotkeys", detail: "Trigger Quick Tools from anywhere without opening the menu bar.", control: hotkeysSwitch)
+            SettingsLayout.toggleRow("Enable global hotkeys", detail: "Trigger Quick Tools from anywhere. Click a shortcut to change it.", control: hotkeysSwitch)
         ]
         for sc in QuickToolsHotkeys.shortcuts {
             shortcutRows.append(SettingsLayout.divider())
-            let badge = NSTextField(labelWithString: sc.display)
-            badge.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
-            badge.textColor = .secondaryLabelColor
-            badge.alignment = .right
-            shortcutRows.append(SettingsLayout.toggleRow(sc.title, control: badge))
+            let recorder = ShortcutRecorderButton(shortcut: sc.current)
+            recorder.onChange = { [prefs] new in prefs.setShortcut(new, for: sc.name) }
+            recorders.append((sc, recorder))
+            shortcutRows.append(SettingsLayout.toggleRow(sc.title, control: recorder))
         }
         
         return [
@@ -72,6 +73,7 @@ final class ToolsSettingsViewController: SettingsPageViewController {
         micMuteSwitch.state = audioManager.isInputMuted() ? .on : .off
         cleanDesktopSwitch.state = desktopManager.areIconsHidden ? .on : .off
         colorFormatPopup.selectItem(at: ColorPickerFormat.allCases.firstIndex(of: prefs.colorPickerFormat) ?? 0)
+        for (sc, r) in recorders { r.set(sc.current) }
     }
     
     @objc private func showChanged() {

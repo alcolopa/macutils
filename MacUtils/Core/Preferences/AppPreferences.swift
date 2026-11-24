@@ -344,6 +344,15 @@ public final class AppPreferences: @unchecked Sendable {
         set { defaults.set(newValue, forKey: keyShowAudioMixer); notifyChange() }
     }
     
+    public func shortcut(_ name: String, default def: Shortcut) -> Shortcut {
+        defaults.string(forKey: "shortcut.\(name)").flatMap(Shortcut.init(stored:)) ?? def
+    }
+    
+    public func setShortcut(_ value: Shortcut, for name: String) {
+        defaults.set(value.stored, forKey: "shortcut.\(name)")
+        notifyChange()
+    }
+    
     public var toolsHotkeysEnabled: Bool {
         get { defaults.bool(forKey: keyToolsHotkeysEnabled) }
         set { defaults.set(newValue, forKey: keyToolsHotkeysEnabled); notifyChange() }

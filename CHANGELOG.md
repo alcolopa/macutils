@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0
+
+- New: Every global shortcut (clipboard picker and all Quick Tools) can be changed in Settings by clicking it and pressing a new combination
+- Fix: The clipboard picker now stays open after you release the keys, like Flycut. Click an item or use ↑ ↓ and Return to paste, Esc to cancel. Holding the keys, pressing the shortcut again, and letting go still pastes
+
 ## 1.3.0
 
 - Fix: Top Processes by CPU usage on Apple Silicon no longer under-reports percentages by ~41.7× (Mach timebase scaling bug)

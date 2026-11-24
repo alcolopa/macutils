@@ -114,8 +114,8 @@ public final class QuickToolsStatusItemController: NSObject, NSMenuDelegate {
         // 1. Microphone Mute
         let isMuted = audioManager.isInputMuted()
         let micTitle = isMuted ? "Unmute Microphone (Muted)" : "Mute Microphone"
-        let micItem = NSMenuItem(title: micTitle, action: #selector(toggleMicMute), keyEquivalent: prefs.toolsHotkeysEnabled ? "m" : "")
-        if prefs.toolsHotkeysEnabled { micItem.keyEquivalentModifierMask = [.option, .shift] }
+        let micItem = NSMenuItem(title: micTitle, action: #selector(toggleMicMute), keyEquivalent: prefs.toolsHotkeysEnabled ? QuickToolsHotkeys.current(id: 4).keyEquivalent : "")
+        if prefs.toolsHotkeysEnabled { micItem.keyEquivalentModifierMask = QuickToolsHotkeys.current(id: 4).flags }
         micItem.target = self
         micItem.image = NSImage(systemSymbolName: isMuted ? "mic.slash" : "mic", accessibilityDescription: nil)
         menu.addItem(micItem)
@@ -123,8 +123,8 @@ public final class QuickToolsStatusItemController: NSObject, NSMenuDelegate {
         // 2. Clean Desktop Toggle
         let iconsHidden = desktopManager.areIconsHidden
         let dtTitle = iconsHidden ? "Show Desktop Icons" : "Hide Desktop Icons (Clean Desktop)"
-        let dtItem = NSMenuItem(title: dtTitle, action: #selector(toggleCleanDesktop), keyEquivalent: prefs.toolsHotkeysEnabled ? "d" : "")
-        if prefs.toolsHotkeysEnabled { dtItem.keyEquivalentModifierMask = [.command, .shift] }
+        let dtItem = NSMenuItem(title: dtTitle, action: #selector(toggleCleanDesktop), keyEquivalent: prefs.toolsHotkeysEnabled ? QuickToolsHotkeys.current(id: 5).keyEquivalent : "")
+        if prefs.toolsHotkeysEnabled { dtItem.keyEquivalentModifierMask = QuickToolsHotkeys.current(id: 5).flags }
         dtItem.target = self
         dtItem.image = NSImage(systemSymbolName: iconsHidden ? "eye" : "eye.slash", accessibilityDescription: nil)
         menu.addItem(dtItem)
@@ -132,23 +132,23 @@ public final class QuickToolsStatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         
         // 3. Quick Scratchpad
-        let noteItem = NSMenuItem(title: "Quick Scratchpad...", action: #selector(openScratchpad), keyEquivalent: prefs.toolsHotkeysEnabled ? "n" : "")
-        if prefs.toolsHotkeysEnabled { noteItem.keyEquivalentModifierMask = [.command, .shift] }
+        let noteItem = NSMenuItem(title: "Quick Scratchpad...", action: #selector(openScratchpad), keyEquivalent: prefs.toolsHotkeysEnabled ? QuickToolsHotkeys.current(id: 3).keyEquivalent : "")
+        if prefs.toolsHotkeysEnabled { noteItem.keyEquivalentModifierMask = QuickToolsHotkeys.current(id: 3).flags }
         noteItem.target = self
         noteItem.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: nil)
         menu.addItem(noteItem)
         
         // 4. Screen OCR Text Grabber
-        let ocrItem = NSMenuItem(title: "Extract Text from Screen (OCR)...", action: #selector(extractTextOCR), keyEquivalent: prefs.toolsHotkeysEnabled ? "2" : "")
-        if prefs.toolsHotkeysEnabled { ocrItem.keyEquivalentModifierMask = [.command, .shift] }
+        let ocrItem = NSMenuItem(title: "Extract Text from Screen (OCR)...", action: #selector(extractTextOCR), keyEquivalent: prefs.toolsHotkeysEnabled ? QuickToolsHotkeys.current(id: 1).keyEquivalent : "")
+        if prefs.toolsHotkeysEnabled { ocrItem.keyEquivalentModifierMask = QuickToolsHotkeys.current(id: 1).flags }
         ocrItem.target = self
         ocrItem.image = NSImage(systemSymbolName: "text.viewfinder", accessibilityDescription: nil)
         menu.addItem(ocrItem)
         
         // 5. Screen Color Picker
         let colorTitle = "Pick Screen Color (\(prefs.colorPickerFormat.rawValue))..."
-        let colorItem = NSMenuItem(title: colorTitle, action: #selector(pickColor), keyEquivalent: prefs.toolsHotkeysEnabled ? "x" : "")
-        if prefs.toolsHotkeysEnabled { colorItem.keyEquivalentModifierMask = [.command, .shift] }
+        let colorItem = NSMenuItem(title: colorTitle, action: #selector(pickColor), keyEquivalent: prefs.toolsHotkeysEnabled ? QuickToolsHotkeys.current(id: 2).keyEquivalent : "")
+        if prefs.toolsHotkeysEnabled { colorItem.keyEquivalentModifierMask = QuickToolsHotkeys.current(id: 2).flags }
         colorItem.target = self
         colorItem.image = NSImage(systemSymbolName: "eyedropper.halffull", accessibilityDescription: nil)
         menu.addItem(colorItem)

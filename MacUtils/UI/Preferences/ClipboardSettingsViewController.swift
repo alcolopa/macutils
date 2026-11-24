@@ -13,13 +13,14 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
     private let limitSlider = NSSlider(value: 30, minValue: 5, maxValue: 100, target: nil, action: nil)
     private let limitLabel = NSTextField(labelWithString: "")
     private let countLabel = NSTextField(labelWithString: "")
+    private let recorder = ShortcutRecorderButton(shortcut: ClipboardPicker.shortcut)
     private let shortcutStatus = NSTextField(labelWithString: "")
     private let accessStatus = NSTextField(labelWithString: "")
     private var setupBanner = NSView()
     private lazy var accessButton = makeButton("Open Accessibility Settings", action: #selector(grantAccess), primary: true)
     
     override var pageTitle: String { "Clipboard" }
-    override var pageSubtitle: String { "Copy as usual. Hold ⌘⇧ and press V to choose from everything you copied." }
+    override var pageSubtitle: String { "Copy as usual. Press your shortcut to choose from everything you copied." }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -30,11 +31,12 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
     }
     
     override func buildCards() -> [NSView] {
-        let caps = NSStackView(views: [keyCap("⌘"), keyCap("⇧"), keyCap("V")])
-        caps.orientation = .horizontal
-        caps.spacing = 8
-        let steps = SettingsLayout.paragraph("Hold ⌘⇧ and press V to open your history.\nKeep holding and press V again to pick another.\nLet go to paste. Esc cancels.")
-        let hero = NSStackView(views: [caps, steps])
+        recorder.onChange = { [weak self] new in
+            self?.prefs.setShortcut(new, for: "clipboard")
+            self?.refreshSoon()
+        }
+        let steps = SettingsLayout.paragraph("Press the shortcut to open your history, then click an item or use ↑ ↓ and Return.\nOr keep the keys held, press the shortcut again to pick another, and let go to paste. Esc cancels.")
+        let hero = NSStackView(views: [recorder, steps])
         hero.orientation = .horizontal
         hero.alignment = .centerY
         hero.spacing = 24
@@ -120,12 +122,13 @@ final class ClipboardSettingsViewController: SettingsPageViewController {
             shortcutStatus.stringValue = "Off"
             shortcutStatus.textColor = .secondaryLabelColor
         } else if ClipboardPicker.shared.isShortcutActive {
-            shortcutStatus.stringValue = "● ⌘⇧V is active"
+            shortcutStatus.stringValue = "● \(ClipboardPicker.shortcut.display) is active"
             shortcutStatus.textColor = .systemGreen
         } else {
             shortcutStatus.stringValue = "● In use by another app"
             shortcutStatus.textColor = .systemOrange
         }
+        recorder.set(ClipboardPicker.shortcut)
         setupBanner.isHidden = PasteService.hasAccess || !prefs.clipboardEnabled
     }
     
