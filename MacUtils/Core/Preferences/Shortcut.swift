@@ -49,17 +49,31 @@ public struct Shortcut: Equatable, Sendable {
         kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12"
     ]
     
+    /// The key's unshifted character on the current layout (stored text can be shifted, e.g. "@" for 2).
+    private var keyText: String {
+        guard let src = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let raw = TISGetInputSourceProperty(src, kTISPropertyUnicodeKeyLayoutData) else { return character }
+        let layout = unsafeBitCast(raw, to: CFData.self)
+        var dead: UInt32 = 0, len = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        let status = CFDataGetBytePtr(layout).withMemoryRebound(to: UCKeyboardLayout.self, capacity: 1) {
+            UCKeyTranslate($0, UInt16(keyCode), UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+                           OptionBits(kUCKeyTranslateNoDeadKeysBit), &dead, 4, &len, &chars)
+        }
+        return status == noErr && len > 0 ? String(utf16CodeUnits: chars, count: len).lowercased() : character
+    }
+    
     public var display: String {
         var s = ""
         if modifiers & UInt32(controlKey) != 0 { s += "⌃" }
         if modifiers & UInt32(optionKey) != 0 { s += "⌥" }
         if modifiers & UInt32(shiftKey) != 0 { s += "⇧" }
         if modifiers & UInt32(cmdKey) != 0 { s += "⌘" }
-        return s + (Self.specialNames[Int(keyCode)] ?? character.uppercased())
+        return s + (Self.specialNames[Int(keyCode)] ?? keyText.uppercased())
     }
     
     /// Character for an NSMenuItem hint; empty for keys that have no plain character.
-    public var keyEquivalent: String { Self.specialNames[Int(keyCode)] == nil ? character : "" }
+    public var keyEquivalent: String { Self.specialNames[Int(keyCode)] == nil ? keyText : "" }
 }
 
 /// Click, then press the new combination (needs at least one modifier). Esc cancels.

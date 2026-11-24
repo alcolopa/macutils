@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+- Fix: The clipboard picker shortcut did nothing because the Quick Tools hotkey handler swallowed it
+- Fix: Shortcuts recorded with Shift showed the shifted character (⌘⇧@ instead of ⌘⇧2)
+
 ## 1.4.0
 
 - New: Every global shortcut (clipboard picker and all Quick Tools) can be changed in Settings by clicking it and pressing a new combination

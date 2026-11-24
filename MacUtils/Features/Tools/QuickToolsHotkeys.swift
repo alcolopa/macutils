@@ -52,7 +52,11 @@ public final class QuickToolsHotkeys {
                 nil,
                 &hotKeyID
             )
-            if err == noErr && hotKeyID.signature == QuickToolsHotkeys.signature {
+            // Let other handlers (the clipboard picker's) see hot keys that aren't ours.
+            guard err == noErr, hotKeyID.signature == QuickToolsHotkeys.signature else {
+                return OSStatus(eventNotHandledErr)
+            }
+            do {
                 let id = hotKeyID.id
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
